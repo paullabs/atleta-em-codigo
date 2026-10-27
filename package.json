@@ -1,0 +1,14 @@
+{
+  "name": "atleta-em-codigo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Estúdio de vídeos animados em 3D feito em código. As dependências ficam em estudio/motor3d.",
+  "scripts": {
+    "instalar": "node estudio/instalar.mjs",
+    "doctor": "node estudio/doctor.mjs",
+    "conferir": "node estudio/conferir.mjs",
+    "exemplo:esportes": "node estudio/esportes/render.mjs --leve --saida esportes/saida/exemplo_esportes.mp4 --de 9 --ate 11"
+  },
+  "license": "SEE LICENSE IN LICENSE"
+}

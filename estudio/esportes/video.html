@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Aula de boxe</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>html,body{margin:0;background:#000}canvas{display:block;width:540px;height:960px}</style>
+<script type="importmap">{"imports":{"three":"/motor3d/node_modules/three/build/three.module.js","three/addons/":"/motor3d/node_modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+<canvas id="saida"></canvas>
+<script type="module">
+// Vídeo-aula do boxe, quadro a quadro: ?w=1080&h=1920&am=6
+// window.__motor = { duracao, fps, renderAt(T), capturar(tipo) } para o render.mjs
+import * as THREE from 'three';
+import { construirAnatomia } from './corpo/anatomia.js';
+import { criarRenderizador, CANTOS } from './corpo/renderizador.js';
+import { montarAula } from './boxe/aula.js';
+import { GOLPES, ALVOS, faceDaLuva } from './boxe/golpes.js';
+import { posar } from './corpo/pose.js';
+import { IDX } from './corpo/esqueleto.js';
+
+const q = new URLSearchParams(location.search);
+const W = Number(q.get('w') || 1080);
+const H = Number(q.get('h') || 1920);
+const AM = Number(q.get('am') || 6);
+const FPS = 30;
+try {
+  await document.fonts.load('400 120px "Bebas Neue"');
+  await document.fonts.load('600 34px "IBM Plex Sans"');
+  await document.fonts.load('400 28px "IBM Plex Mono"');
+  const anat = construirAnatomia();
+  const gl = document.createElement('canvas');
+  gl.id = 'c';
+  const R = criarRenderizador(gl, anat, { lutadores: 2 });
+  const aula = montarAula();
+  const out = document.getElementById('saida');
+  out.width = W;
+  out.height = H;
+  const c = out.getContext('2d');
+  const S = H / 1920; // escala do texto
+
+  // centro do punho dentro da luva (o rastro segue este ponto: mostra o caminho da mão sem a curva da ponta)
+  const centroDaLuva = (E, lado) => {
+    const cto = E.P[IDX[`antebraco_${lado}`]];
+    const p = E.P[IDX[`mao_${lado}`]];
+    return p.clone().addScaledVector(p.clone().sub(cto).normalize(), 0.085);
+  };
+  // projeção de um ponto do mundo na tela (mesma câmera do shader)
+  function projetor(cam) {
+    const pos = new THREE.Vector3(...cam.pos);
+    const fwd = new THREE.Vector3(...cam.alvo).sub(pos).normalize();
+    const right = fwd.clone().cross(new THREE.Vector3(0, 1, 0)).normalize();
+    const up = right.clone().cross(fwd).normalize();
+    const tan = 18 / cam.mm;
+    return (p) => {
+      const d = p.clone().sub(pos);
+      const z = d.dot(fwd);
+      return [W / 2 + (d.dot(right) / (z * tan)) * (H / 2), H / 2 - (d.dot(up) / (z * tan)) * (H / 2), z];
+    };
+  }
+
+  // etiqueta em até duas linhas, presa na borda da tela; devolve o ponto de onde sai o fio
+  const pilula = (x, y, texto, alfa, alinhar) => {
+    c.font = `600 ${Math.round(alinhar === 'centro' ? 40 : 31) * S}px "IBM Plex Sans"`;
+    const max = alinhar === 'centro' ? 0.8 * W : 0.34 * W;
+    const linhas = [];
+    let atual = '';
+    for (const p of texto.split(' ')) {
+      const prova = atual ? atual + ' ' + p : p;
+      if (c.measureText(prova).width > max && atual) {
+        linhas.push(atual);
+        atual = p;
+      } else atual = prova;
+    }
+    linhas.push(atual);
+    const tw = Math.max(...linhas.map((l) => c.measureText(l).width));
+    const lh = (alinhar === 'centro' ? 50 : 40) * S;
+    const pw = tw + 48 * S;
+    const ph = linhas.length * lh + 30 * S;
+    const x0 = alinhar === 'esq' ? x : alinhar === 'centro' ? x - pw / 2 : x - pw;
+    c.globalAlpha = alfa;
+    c.fillStyle = 'rgba(12,13,16,0.8)';
+    c.beginPath();
+    c.roundRect(x0, y - ph / 2, pw, ph, 22 * S);
+    c.fill();
+    c.strokeStyle = 'rgba(255,255,255,0.22)';
+    c.lineWidth = 1.5 * S;
+    c.stroke();
+    c.fillStyle = '#fff';
+    c.textBaseline = 'middle';
+    c.textAlign = 'left';
+    linhas.forEach((l, i) => c.fillText(l, x0 + 24 * S, y - ((linhas.length - 1) * lh) / 2 + i * lh + 1));
+    c.globalAlpha = 1;
+    return alinhar === 'esq' ? [x0 + pw, y] : [x0, y];
+  };
+
+  function sobreposicoes(T, E, cam) {
+    const b = aula.blocoEm(T);
+    const tl = T - b.T0;
+    const proj = projetor(cam);
+    const fade = (a, z) => Math.min(1, Math.max(0, Math.min((tl - a) / 0.25, (z - tl) / 0.25)));
+    // título e etiqueta
+    c.textAlign = 'center';
+    c.textBaseline = 'alphabetic';
+    const fT = Math.min(1, tl / 0.3);
+    c.globalAlpha = fT;
+    c.fillStyle = '#fff';
+    c.font = `400 ${Math.round(150 * S)}px "Bebas Neue"`;
+    c.letterSpacing = `${4 * S}px`;
+    c.fillText(b.titulo, W / 2, 250 * S);
+    c.letterSpacing = '0px';
+    c.font = `400 ${Math.round(30 * S)}px "IBM Plex Mono"`;
+    c.fillStyle = 'rgba(255,255,255,0.72)';
+    c.fillText(b.tag.toUpperCase(), W / 2, 305 * S);
+    c.globalAlpha = 1;
+    // golpe ativo ou o último do bloco (para o rastro ficar depois do golpe)
+    const { ev, tau } = aula.golpeEm(T);
+    let evR = ev;
+    let tauR = tau;
+    if (!evR && b.eventos.length) {
+      const passados = b.eventos.filter((e) => tl >= e.T0);
+      if (passados.length) {
+        evR = passados[passados.length - 1];
+        tauR = GOLPES[evR.golpe].dur;
+      }
+    }
+    // câmera lenta: alvo (onde a luva bate) e rastro da face da luva desde a guarda
+    if (b.tipo === 'lento' && evR) {
+      const g = GOLPES[evR.golpe];
+      const alvo = evR.golpe === 'jab' || evR.golpe === 'direto' ? ALVOS.reto : ALVOS[evR.golpe].face;
+      const [ax, ay, az] = proj(alvo);
+      const rpx = (0.075 / (az * (18 / cam.mm))) * (H / 2);
+      c.strokeStyle = 'rgba(255,255,255,0.5)';
+      c.lineWidth = 3 * S;
+      c.setLineDash([10 * S, 8 * S]);
+      c.beginPath();
+      c.arc(ax, ay, rpx, 0, Math.PI * 2);
+      c.stroke();
+      c.setLineDash([]);
+      const pts = [];
+      const fim = Math.min(tauR, g.dur);
+      for (let t = 0; t <= fim + 1e-6; t += 0.005) pts.push(proj(centroDaLuva(posar(g.postura(t)), g.lado)));
+      for (let i = 1; i < pts.length; i++) {
+        const a = i / pts.length;
+        c.strokeStyle = `rgba(255,255,255,${0.12 + 0.7 * a})`;
+        c.lineWidth = (2.5 + 4 * a) * S;
+        c.beginPath();
+        c.moveTo(pts[i - 1][0], pts[i - 1][1]);
+        c.lineTo(pts[i][0], pts[i][1]);
+        c.stroke();
+      }
+    }
+    // uma dica por vez: texto no alto e um anel na parte do corpo
+    const d = aula.dicaEm(T);
+    if (d && d.alfa > 0) {
+      pilula(W / 2, 400 * S, d.texto, d.alfa, 'centro');
+      const [px, py, pz] = proj(d.ponto(E));
+      const pulso = 1 + 0.07 * Math.sin(T * 2 * Math.PI * 1.8);
+      const r = 46 * S * pulso;
+      c.globalAlpha = d.alfa;
+      c.strokeStyle = 'rgba(255,255,255,0.95)';
+      c.lineWidth = 4 * S;
+      c.shadowColor = 'rgba(255,255,255,0.8)';
+      c.shadowBlur = 14 * S;
+      c.beginPath();
+      c.arc(px, py, r, 0, Math.PI * 2);
+      c.stroke();
+      c.shadowBlur = 0;
+      c.globalAlpha = 1;
+    }
+  }
+
+  function renderAt(T) {
+    const tempos = [];
+    for (let i = 0; i < AM; i++) tempos.push(Math.max(0, T + ((i + 0.5) / AM - 0.5) / (2 * FPS)));
+    const b = aula.blocoEm(T);
+    const lutadores = [{ estados: tempos.map((t) => aula.estadoEm(t)), cores: CANTOS.vermelho }];
+    if (b.dupla) lutadores.push({ estados: tempos.map((t) => aula.estadoDuplaEm(t)), cores: CANTOS.azul });
+    const cam = aula.cameraEm(T);
+    R.desenhar({ lutadores, camera: cam, w: W, h: H, amostras: AM, chaoCentro: (b.chao && b.chao.centro) || [0, 0, 0], chaoRaio: (b.chao && b.chao.raio) || 1.8 });
+    c.drawImage(gl, 0, 0);
+    sobreposicoes(T, aula.estadoEm(T), cam);
+    // nomes dos cantos sobre a cabeça de cada lutador
+    if (b.rotulos) {
+      const proj = projetor(cam);
+      const tl = T - b.T0;
+      const a = Math.min(1, Math.max(0, Math.min((tl - 0.4) / 0.3, (b.dur - tl) / 0.25)));
+      const Es = [aula.estadoEm(T), aula.estadoDuplaEm(T)];
+      for (const r of b.rotulos) {
+        const E = Es[r.lutador];
+        if (!E) continue;
+        const [x, y] = proj(E.P[IDX.cabeca].clone().add(new THREE.Vector3(0, 0.36, 0)));
+        c.globalAlpha = a;
+        c.font = `400 ${Math.round(46 * S)}px "Bebas Neue"`;
+        c.letterSpacing = `${2 * S}px`;
+        c.textAlign = 'center';
+        c.textBaseline = 'alphabetic';
+        c.fillStyle = r.lutador === 0 ? '#ff5a52' : '#6f9bff';
+        c.fillText(r.texto, x, y);
+        c.letterSpacing = '0px';
+        c.globalAlpha = 1;
+      }
+    }
+  }
+
+  window.__motor = {
+    duracao: aula.duracao,
+    fps: FPS,
+    renderAt,
+    capturar: (tipo = 'image/png') => out.toDataURL(tipo, 0.95),
+    blocos: aula.blocos.map((b) => ({ titulo: b.titulo, tag: b.tag, T0: b.T0, dur: b.dur })),
+  };
+  window.__pronto = true;
+} catch (e) {
+  window.__erro = String((e && e.stack) || e);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Folhas do atleta</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>body{margin:0;background:#15171a}canvas{display:block;max-width:100%}</style>
+<script type="importmap">{"imports":{"three":"/motor3d/node_modules/three/build/three.module.js"}}</script>
+</head>
+<body>
+<script type="module">
+// Folhas do atleta de esportes: ?folha=1..4
+//   1 os lutadores   2 a guarda (ângulos e medidas)   3 os quatro golpes   4 mapa de músculos   5 raio X (camadas do corpo)
+import * as THREE from 'three';
+import { construirAnatomia, MUSCULOS } from './corpo/anatomia.js';
+import { criarRenderizador, ESTUDIO, CANTOS } from './corpo/renderizador.js';
+import { carregarRaioX } from './anatomia_interna/carregar.js';
+import { IDX, paraMundo, posicionar } from './corpo/esqueleto.js';
+import { posar, posturaNeutra } from './corpo/pose.js';
+import { GOLPES, guarda, ALVOS, anguloCotovelo, faceDaLuva } from './boxe/golpes.js';
+
+const AMARELO = '#ffd23f';
+try {
+  const q = new URLSearchParams(location.search);
+  const folha = Number(q.get('folha') || 1);
+  await document.fonts.load('400 60px "Bebas Neue"');
+  await document.fonts.load('600 20px "IBM Plex Mono"');
+  await document.fonts.load('400 20px "IBM Plex Mono"');
+  await document.fonts.load('400 20px "IBM Plex Sans"');
+  await document.fonts.load('600 20px "IBM Plex Sans"');
+  const gl = document.createElement('canvas');
+  const R = criarRenderizador(gl, construirAnatomia(), { lutadores: folha === 1 ? 2 : 1 });
+  const W = 1800;
+  let out, c, H;
+  const nova = (altura) => {
+    H = altura;
+    out = document.createElement('canvas');
+    out.width = W;
+    out.height = H;
+    document.body.appendChild(out);
+    c = out.getContext('2d');
+    c.fillStyle = '#15171a';
+    c.fillRect(0, 0, W, H);
+  };
+  const rr = (x, y, w, h, cor, r = 14) => {
+    c.fillStyle = cor;
+    c.beginPath();
+    c.roundRect(x, y, w, h, r);
+    c.fill();
+  };
+  const txt = (s, x, y, { f = '400 22px "IBM Plex Sans"', cor = '#ffffff', al = 'left', ls = 0 } = {}) => {
+    c.font = f;
+    c.fillStyle = cor;
+    c.textAlign = al;
+    c.letterSpacing = `${ls}px`;
+    c.textBaseline = 'alphabetic';
+    c.fillText(s, x, y);
+    c.letterSpacing = '0px';
+  };
+  const cabecalho = (titulo, sub) => {
+    txt(titulo.toUpperCase(), 48, 86, { f: '400 84px "Bebas Neue"', ls: 1.5 });
+    txt(sub, 52, 120, { f: '400 20px "IBM Plex Mono"', cor: 'rgba(255,255,255,.62)' });
+    return 150;
+  };
+  const rodape = (s) => txt(s || 'ESPORTES · lutadores de boxe · corpo humano feito em código (distância com sinal + raymarching), só as luvas e o calção têm cor', 48, H - 20, { f: '400 15px "IBM Plex Mono"', cor: 'rgba(255,255,255,.4)' });
+  const legenda = (s, x, y, cor = '#ffffff') => txt(s, x, y, { f: '600 17px "IBM Plex Mono"', cor, ls: 0.6 });
+
+  // câmera em volta do ponto alvo: azimute (graus, 0 = de frente para o atleta, +Z), elevação, distância, lente
+  const cameraEm = (alvo, az, el, dist, mm) => {
+    const a = THREE.MathUtils.degToRad(az);
+    const e = THREE.MathUtils.degToRad(el);
+    return { pos: [alvo[0] + dist * Math.sin(a) * Math.cos(e), alvo[1] + dist * Math.sin(e), alvo[2] + dist * Math.cos(a) * Math.cos(e)], alvo, mm };
+  };
+  // projeção do mundo para a célula (mesma câmera do shader)
+  const projetor = (cam, w, h) => {
+    const pos = new THREE.Vector3(...cam.pos);
+    const fwd = new THREE.Vector3(...cam.alvo).sub(pos).normalize();
+    const right = fwd.clone().cross(new THREE.Vector3(0, 1, 0)).normalize();
+    const up = right.clone().cross(fwd).normalize();
+    const tan = (h > w ? 36 : 24) / 2 / cam.mm;
+    return (p) => {
+      const d = p.clone().sub(pos);
+      const z = d.dot(fwd);
+      return [w / 2 + (d.dot(right) / (z * tan)) * (h / 2), h / 2 - (d.dot(up) / (z * tan)) * (h / 2)];
+    };
+  };
+  function celula(x, y, w, h, E, cam, { musculos = null, am = 10, lutadores = null, chaoCentro = [0, 0, 0], chaoRaio = 1.6, raioX = null } = {}) {
+    R.desenhar({ estados: [E], lutadores, camera: cam, w, h, amostras: am, musculos, chaoCentro, chaoRaio, raioX });
+    c.save();
+    c.beginPath();
+    c.roundRect(x, y, w, h, 14);
+    c.clip();
+    c.drawImage(gl, x, y);
+    c.restore();
+    return projetor(cam, w, h);
+  }
+  const chips = (cores, x, y, w = 120, h = 56) =>
+    cores.forEach(([hex, nome], i) => {
+      rr(x + i * (w + 12), y, w, h, hex, 10);
+      txt(nome, x + i * (w + 12) + w / 2, y + h + 22, { f: '600 14px "IBM Plex Mono"', cor: 'rgba(255,255,255,.8)', al: 'center' });
+      txt(hex, x + i * (w + 12) + w / 2, y + h + 42, { f: '400 13px "IBM Plex Mono"', cor: 'rgba(255,255,255,.5)', al: 'center' });
+    });
+  const cor = ESTUDIO.cores;
+
+  // ---------- 1: os lutadores ----------
+  if (folha === 1) {
+    nova(1790);
+    const y = cabecalho('Os lutadores', 'canto vermelho e canto azul · o mesmo corpo atlético, sem rosto · só as luvas e o calção têm cor');
+    // frente a frente, na guarda
+    const D = 1.65;
+    const vermelho = posar(guarda());
+    const azul = posicionar(posar(guarda()), [0, 0, D], 180);
+    const hw = 1704;
+    const hh = 640;
+    celula(48, y, hw, hh, vermelho, cameraEm([0, 0.98, D / 2], -90, 7, 4.4, 50), { lutadores: [{ estados: [vermelho], cores: CANTOS.vermelho }, { estados: [azul], cores: CANTOS.azul }], chaoCentro: [0, 0, D / 2], chaoRaio: 2.4 });
+    legenda('FRENTE A FRENTE · GUARDA', 64, y + 30);
+    // cada um, de pé: frente e perfil
+    const y2 = y + hh + 24;
+    const cw = 410;
+    const ch = 700;
+    const neutra = posar(posturaNeutra());
+    [['VERMELHO · FRENTE', 0, 'vermelho'], ['VERMELHO · PERFIL', 90, 'vermelho'], ['AZUL · FRENTE', 0, 'azul'], ['AZUL · PERFIL', 90, 'azul']].forEach(([nome, az, canto], i) => {
+      const x = 48 + i * (cw + 20);
+      celula(x, y2, cw, ch, neutra, cameraEm([0, 0.93, 0], az, 4, 3.85, 70), { lutadores: [{ estados: [neutra], cores: CANTOS[canto] }] });
+      legenda(nome, x + 16, y2 + 30);
+    });
+    const y3 = y2 + ch + 40;
+    txt('CANTO VERMELHO', 48, y3 + 14, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    chips([[CANTOS.vermelho.luva, 'luvas'], [CANTOS.vermelho.short, 'calção'], [CANTOS.vermelho.cos, 'cós']], 48, y3 + 32, 110);
+    txt('CANTO AZUL', 450, y3 + 14, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    chips([[CANTOS.azul.luva, 'luvas'], [CANTOS.azul.short, 'calção'], [CANTOS.azul.cos, 'cós']], 450, y3 + 32, 110);
+    txt('CORPO', 852, y3 + 14, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    chips([[cor.pele, 'argila']], 852, y3 + 32, 110);
+    txt('TRAÇOS', 1060, y3 + 14, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    [
+      'proporção de atleta: 7,7 cabeças, ombros de 50 cm, cintura fina',
+      'cabeça de manequim, sem rosto · 24 músculos com nome',
+      'luva de 12 oz com polegar e velcro · calção de cetim de cós largo',
+      'os dois na base ortodoxa; a cor é a única diferença',
+    ].forEach((t, i) => txt('• ' + t, 1060, y3 + 48 + i * 30, { f: '400 19px "IBM Plex Sans"', cor: 'rgba(255,255,255,.86)' }));
+    rodape();
+  }
+
+  // ---------- 2: a guarda ----------
+  if (folha === 2) {
+    nova(1390);
+    const y = cabecalho('A guarda', 'base ortodoxa (pé esquerdo na frente) · as medidas abaixo saem do próprio esqueleto');
+    const E = posar(guarda());
+    const cw = 410;
+    const ch = 700;
+    [['ADVERSÁRIO', 0], ['3/4 FRENTE', -45], ['LADO', -90], ['3/4 COSTAS', -150]].forEach(([nome, az], i) => {
+      const x = 48 + i * (cw + 20);
+      celula(x, y, cw, ch, E, cameraEm([-0.02, 0.92, 0.0], az, 5, 3.55, 70));
+      legenda(nome, x + 16, y + 30);
+    });
+    // pegadas vistas de cima (desenho a partir da pose): onde cada pé pisa, para onde aponta e o alvo
+    const y2 = y + ch + 24;
+    const tw = 640;
+    const th = 470;
+    rr(48, y2, tw, th, '#1f2227');
+    legenda('PEGADAS · VISTA DE CIMA', 64, y2 + 30);
+    const esc = 560; // px por metro
+    const cx = 48 + tw / 2 + 10;
+    const cz = y2 + th / 2 + 30;
+    const para = (x, z) => [cx - x * esc, cz - z * esc]; // a esquerda do atleta (+X) fica à esquerda na folha, a frente para cima
+    c.strokeStyle = 'rgba(255,255,255,0.07)';
+    c.lineWidth = 1;
+    for (let gx = -0.5; gx <= 0.5001; gx += 0.1) {
+      const [a1, b1] = para(gx, -0.4);
+      const [a2, b2] = para(gx, 0.4);
+      c.beginPath();
+      c.moveTo(a1, b1);
+      c.lineTo(a2, b2);
+      c.stroke();
+    }
+    for (let gz = -0.4; gz <= 0.4001; gz += 0.1) {
+      const [a1, b1] = para(-0.5, gz);
+      const [a2, b2] = para(0.5, gz);
+      c.beginPath();
+      c.moveTo(a1, b1);
+      c.lineTo(a2, b2);
+      c.stroke();
+    }
+    // pé: contorno de 27 cm (calcanhar 20 cm atrás da bola do pé, dedos 7 cm à frente), linha do pé e bola
+    const pegada = (s) => {
+      const f = new THREE.Vector3(0, 0, 1).applyQuaternion(E.R[IDX[`dedos_${s}`]]);
+      const b = E.P[IDX[`dedos_${s}`]];
+      const ang = -Math.atan2(f.x, f.z); // espelhado: x do mundo cresce para a esquerda da folha
+      const [bx, bz] = para(b.x, b.z);
+      c.save();
+      c.translate(bx, bz);
+      c.rotate(ang);
+      c.fillStyle = 'rgba(255,255,255,0.1)';
+      c.strokeStyle = 'rgba(255,255,255,0.85)';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.ellipse(0, 0.065 * esc, 0.048 * esc, 0.135 * esc, 0, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      c.strokeStyle = AMARELO;
+      c.lineWidth = 3;
+      c.setLineDash([8, 6]);
+      c.beginPath();
+      c.moveTo(0, 0.24 * esc);
+      c.lineTo(0, -0.2 * esc);
+      c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = AMARELO;
+      c.beginPath();
+      c.arc(0, 0, 6, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+      return [bx, bz, (Math.atan2(f.x, f.z) * 180) / Math.PI];
+    };
+    const [ex, ez, eang] = pegada('e');
+    const [dx, dz, dang] = pegada('d');
+    // linha entre as bolas dos pés
+    c.strokeStyle = 'rgba(255,255,255,0.5)';
+    c.lineWidth = 2;
+    c.setLineDash([4, 5]);
+    c.beginPath();
+    c.moveTo(ex, ez);
+    c.lineTo(dx, dz);
+    c.stroke();
+    c.setLineDash([]);
+    // seta do alvo
+    c.strokeStyle = '#fff';
+    c.fillStyle = '#fff';
+    c.lineWidth = 3;
+    const [ax0, az0] = para(0.32, 0.3);
+    c.beginPath();
+    c.moveTo(ax0, az0 + 22);
+    c.lineTo(ax0, az0 - 22);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(ax0, az0 - 34);
+    c.lineTo(ax0 - 10, az0 - 18);
+    c.lineTo(ax0 + 10, az0 - 18);
+    c.fill();
+    txt('ADVERSÁRIO', ax0 + 16, az0 - 18, { f: '600 15px "IBM Plex Mono"', cor: 'rgba(255,255,255,.8)' });
+    txt(`pé da frente · ${Math.abs(eang).toFixed(0)}° para dentro`, ex + 40, ez + 6, { f: '600 15px "IBM Plex Mono"', cor: AMARELO });
+    txt(`pé de trás · ${Math.abs(dang).toFixed(0)}° para fora`, dx - 330, dz + 10, { f: '600 15px "IBM Plex Mono"', cor: AMARELO });
+    txt('calcanhar levantado', dx - 330, dz + 32, { f: '400 14px "IBM Plex Mono"', cor: 'rgba(255,255,255,.65)' });
+    // medidas
+    const P = (n) => E.P[IDX[n]];
+    const ang = (a, b, cc) => (P(a).clone().sub(P(b)).angleTo(P(cc).clone().sub(P(b))) * 180) / Math.PI;
+    const yawPe = (s) => {
+      const f = new THREE.Vector3(0, 0, 1).applyQuaternion(E.R[IDX[`dedos_${s}`]]);
+      return (Math.atan2(f.x, f.z) * 180) / Math.PI;
+    };
+    const calc = (s) => paraMundo(E, IDX[`pe_${s}`], new THREE.Vector3(0.1 * (s === 'e' ? 1 : -1), 0.0, -0.075)).y;
+    const bola = (s) => P(`dedos_${s}`);
+    const larg = bola('e').clone().sub(bola('d'));
+    const yawDe = (n) => {
+      const f = new THREE.Vector3(0, 0, 1).applyQuaternion(E.R[IDX[n]]);
+      return (Math.atan2(f.x, f.z) * 180) / Math.PI;
+    };
+    const medidas = [
+      ['pé da frente', `${Math.abs(yawPe('e')).toFixed(0)}° para dentro`],
+      ['pé de trás', `${Math.abs(yawPe('d')).toFixed(0)}° para fora`],
+      ['calcanhar de trás', `${(calc('d') * 100).toFixed(1)} cm do chão`],
+      ['distância entre os pés', `${(Math.hypot(larg.x, larg.z) * 100).toFixed(0)} cm (${(larg.z * 100).toFixed(0)} à frente, ${(Math.abs(larg.x) * 100).toFixed(0)} de lado)`],
+      ['joelho da frente', `${(180 - ang('coxa_e', 'canela_e', 'pe_e')).toFixed(0)}° dobrado`],
+      ['joelho de trás', `${(180 - ang('coxa_d', 'canela_d', 'pe_d')).toFixed(0)}° dobrado`],
+      ['quadril', `${Math.abs(yawDe('pelve')).toFixed(0)}° de lado para o alvo`],
+      ['ombros', `${Math.abs(yawDe('peito')).toFixed(0)}° de lado para o alvo`],
+      ['cotovelo da frente', `${(180 - anguloCotovelo(E, 'e')).toFixed(0)}° dobrado`],
+      ['cotovelo de trás', `${(180 - anguloCotovelo(E, 'd')).toFixed(0)}° dobrado`],
+    ];
+    const x0 = 48 + tw + 40;
+    txt('MEDIDAS DA GUARDA', x0, y2 + 24, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    medidas.forEach(([k, v], i) => {
+      const yy = y2 + 64 + i * 38;
+      txt(k, x0, yy, { f: '400 20px "IBM Plex Sans"', cor: 'rgba(255,255,255,.7)' });
+      txt(v, x0 + 300, yy, { f: '600 20px "IBM Plex Sans"' });
+    });
+    txt('fontes: guia de base da Ringsport (pé de trás ~45°, calcanhar 3-4 cm), ExpertBoxing', x0, y2 + 64 + medidas.length * 38 + 8, { f: '400 14px "IBM Plex Mono"', cor: 'rgba(255,255,255,.45)' });
+    rodape();
+  }
+
+  // ---------- 3: os golpes ----------
+  if (folha === 3) {
+    nova(1880);
+    const y = cabecalho('Os quatro golpes', 'jab, direto, gancho e uppercut · guarda, meio do caminho e impacto · números medidos no impacto');
+    const cw = 410;
+    const ch = 470;
+    const cols = [
+      ['jab', 'JAB', -90, 'e'],
+      ['direto', 'DIRETO', -90, 'd'],
+      ['gancho', 'GANCHO', 25, 'e'],
+      ['upper', 'UPPERCUT', -100, 'd'],
+    ];
+    cols.forEach(([nome, titulo, az, lado], i) => {
+      const g = GOLPES[nome];
+      const x = 48 + i * (cw + 20);
+      txt(titulo, x + 4, y + 44, { f: '400 46px "Bebas Neue"', ls: 1 });
+      [['GUARDA', 0], ['MEIO', g.impacto * 0.55], ['IMPACTO', g.impacto]].forEach(([fase, t], j) => {
+        const yy = y + 64 + j * (ch + 16);
+        const E = posar(g.postura(t));
+        const cam = cameraEm([-0.02, 1.0, 0.33], az, nome === 'gancho' ? 32 : 6, 3.4, 52);
+        celula(x, yy, cw, ch, E, cam);
+        legenda(fase, x + 14, yy + 28);
+      });
+      const E = posar(g.postura(g.impacto));
+      const cot = anguloCotovelo(E, lado);
+      const palma = new THREE.Vector3(-(lado === 'e' ? 1 : -1), 0, 0).applyQuaternion(E.R[IDX[`mao_${lado}`]]);
+      const yawDe = (n) => {
+        const f = new THREE.Vector3(0, 0, 1).applyQuaternion(E.R[IDX[n]]);
+        return (Math.atan2(f.x, f.z) * 180) / Math.PI;
+      };
+      const E0 = posar(guarda());
+      const giroQ = yawDe('pelve') - (Math.atan2(...(() => { const f = new THREE.Vector3(0, 0, 1).applyQuaternion(E0.R[IDX.pelve]); return [f.x, f.z]; })()) * 180) / Math.PI;
+      const palmaTxt = palma.y < -0.8 ? 'para baixo' : palma.z < -0.6 ? 'para o próprio rosto' : palma.y > 0.4 ? 'para cima' : 'de lado';
+      const linhas = [
+        ['cotovelo', `${cot.toFixed(0)}° (interno)`],
+        ['palma', palmaTxt],
+        ['giro do quadril', `${giroQ > 0 ? '+' : ''}${giroQ.toFixed(0)}°`],
+        ['impacto em', `${(g.impacto * 1000).toFixed(0)} ms`],
+      ];
+      const yt = y + 64 + 3 * (ch + 16) + 8;
+      linhas.forEach(([k, v], n) => {
+        txt(k, x + 4, yt + n * 32, { f: '400 18px "IBM Plex Sans"', cor: 'rgba(255,255,255,.65)' });
+        txt(v, x + 180, yt + n * 32, { f: '600 18px "IBM Plex Sans"' });
+      });
+    });
+    rodape('ESPORTES · tempos: Piorkowski, Lees e Barton (2011), golpe único do acionamento ao contato ~0,36 s nos retos e ~0,48 s nos ganchos');
+  }
+
+  // ---------- 5: raio X ----------
+  if (folha === 5) {
+    nova(1840);
+    const y = cabecalho('Raio X', 'camadas do corpo: pele, osso e órgão, presos ao mesmo esqueleto do atleta · anatomia real do BodyParts3D');
+    const man = await carregarRaioX(R);
+    const E = posar(posturaNeutra());
+    const OSSOS_ID = { cranio: 0.35, mandibula: 0.5, coluna: 1, costelas: 0.7, esterno: 0.7, pelve: 0.7 };
+    const ossos = Object.fromEntries(Object.entries(OSSOS_ID).map(([id, a]) => [id, a < 1 ? { alfa: a } : {}]));
+    const orgaos = Object.fromEntries(man.partes.filter((p) => !(p.id in OSSOS_ID)).map((p) => [p.id, p.alfa < 1 ? { alfa: Math.max(p.alfa, 0.6) } : {}]));
+    const tudo = { ...Object.fromEntries(man.partes.map((p) => [p.id, {}])), cranio: { alfa: 0.2 }, mandibula: { alfa: 0.3 }, coluna: { alfa: 0.6 }, costelas: { alfa: 0.35 }, esterno: { alfa: 0.4 }, pelve: { alfa: 0.4 }, diafragma: { alfa: 0.25 }, pulmao_d: { alfa: 0.35 }, pulmao_e: { alfa: 0.35 } };
+    const cw = 410, ch = 760;
+    const colunas = [['PELE', null], ['RAIO X · TUDO', { lutador: 0, base: 0.1, borda: 0.8, ganho: 1.2, camadas: tudo }], ['SÓ OS OSSOS', { lutador: 0, base: 0.03, borda: 0.55, ganho: 1.3, camadas: ossos }], ['SÓ OS ÓRGÃOS', { lutador: 0, base: 0.03, borda: 0.55, ganho: 1.3, camadas: orgaos }]];
+    colunas.forEach(([nome, rx], i) => {
+      const x = 48 + i * (cw + 20);
+      celula(x, y, cw, ch, E, cameraEm([0, 1.15, 0], 25, 4, 2.9, 70), { raioX: rx });
+      legenda(nome, x + 16, y + 30);
+    });
+    // cabeça e estômago de perto
+    const y2 = y + ch + 24;
+    const pw = 410, ph = 470;
+    [['CABEÇA · DE FRENTE', 0], ['CABEÇA · DE LADO', 90]].forEach(([nome, az], i) => {
+      const x = 48 + i * (pw + 20);
+      celula(x, y2, pw, ph, E, cameraEm([0, 1.64, 0], az, 4, 1.05, 85), { raioX: { lutador: 0, base: 0.1, borda: 0.8, ganho: 1.2, camadas: { cranio: { alfa: 0.2 }, mandibula: { alfa: 0.3 }, cerebro: {}, coluna: { alfa: 0.6 } } } });
+      legenda(nome, x + 16, y2 + 30);
+    });
+    const abdome = { costelas: { alfa: 0.22 }, coluna: { alfa: 0.5 }, pelve: { alfa: 0.35 }, diafragma: { alfa: 0.25 }, ...Object.fromEntries(['estomago', 'figado', 'pancreas', 'vesicula', 'duodeno', 'intestino_delgado', 'intestino_grosso', 'rim_d', 'rim_e', 'adrenal_d', 'adrenal_e', 'bexiga', 'aorta', 'veia_cava_inf'].map((id) => [id, {}])) };
+    celula(48 + 2 * (pw + 20), y2, pw, ph, E, cameraEm([0.0, 1.12, 0], 20, 6, 1.55, 85), { raioX: { lutador: 0, base: 0.08, borda: 0.8, ganho: 1.25, camadas: abdome } });
+    legenda('ABDOME · ÓRGÃOS', 48 + 2 * (pw + 20) + 16, y2 + 30);
+    // lista das peças
+    const xl = 48 + 3 * (pw + 20);
+    txt(`${man.partes.length} PEÇAS`, xl, y2 + 22, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    const por = Math.ceil(man.partes.length / 2);
+    man.partes.forEach((p, i) => {
+      const cx = xl + Math.floor(i / por) * 225;
+      const yy = y2 + 52 + (i % por) * 27;
+      rr(cx, yy - 12, 16, 14, p.cor, 4);
+      txt(p.nome, cx + 24, yy, { f: '400 15px "IBM Plex Sans"', cor: 'rgba(255,255,255,.88)' });
+    });
+    const y3 = y2 + ph + 40;
+    txt('COMO FUNCIONA', 48, y3, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    [
+      'cada peça é uma malha real, ajustada ao tamanho do atleta e presa ao osso certo (mistura de até 4 ossos, por altura); gira, dobra e cede com o corpo',
+      'a pele vira uma casca: mais transparente no meio do corpo, mais opaca na borda; as peças internas são desenhadas por baixo',
+      'a cabeça do atleta foi aumentada 10% para caber um crânio de tamanho real; o tórax ficou 12% mais fundo; o que ainda sobrava foi empurrado para dentro da pele (até 1 cm)',
+      'ainda sem os ossos dos braços e das pernas, sem o baço (só vem no pacote maior) e sem corte (abrir o corpo por um plano): ficam para o próximo passo',
+    ].forEach((t, i) => txt('• ' + t, 48, y3 + 36 + i * 30, { f: '400 19px "IBM Plex Sans"', cor: 'rgba(255,255,255,.86)' }));
+    txt(man.credito, 48, H - 44, { f: '400 15px "IBM Plex Mono"', cor: 'rgba(255,255,255,.55)' });
+    rodape();
+  }
+
+  // ---------- 4: mapa de músculos ----------
+  if (folha === 4) {
+    nova(1290);
+    const y = cabecalho('Mapa de músculos', 'cada músculo tem nome e acende sozinho · base da academia: marcar a região que o exercício trabalha');
+    const E = posar(posturaNeutra());
+    const paleta = ['#ff5a3c', '#ffb02e', '#ffe14d', '#9be15d', '#3ddc97', '#2ec5d3', '#4f8cff', '#8a6bff', '#d46bff', '#ff6bb5', '#ff8a5c', '#c9f04d'];
+    const mus = Object.fromEntries(MUSCULOS.map(([id], i) => [id, { cor: paleta[i % paleta.length] }]));
+    const cw = 410;
+    const ch = 780;
+    [['FRENTE', 0], ['3/4', 40], ['COSTAS', 180]].forEach(([nome, az], i) => {
+      const x = 48 + i * (cw + 20);
+      celula(x, y, cw, ch, E, cameraEm([0, 0.93, 0], az, 4, 3.85, 70), { musculos: mus });
+      legenda(nome, x + 16, y + 30);
+    });
+    const x0 = 48 + 3 * (cw + 20) + 10;
+    txt('24 GRUPOS', x0, y + 22, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    MUSCULOS.forEach(([id, nome], i) => {
+      const yy = y + 52 + i * 30.5;
+      rr(x0, yy - 15, 22, 20, mus[id].cor, 5);
+      txt(nome, x0 + 34, yy, { f: '400 18px "IBM Plex Sans"', cor: 'rgba(255,255,255,.88)' });
+    });
+    const y2 = y + ch + 40;
+    txt('EXEMPLO DE USO', 48, y2 + 14, { f: '600 16px "IBM Plex Mono"', cor: AMARELO, ls: 1.2 });
+    txt('flexão de braço → peitoral, tríceps e deltoide anterior acendem; o resto do corpo fica cinza', 48, y2 + 50, { f: '400 22px "IBM Plex Sans"', cor: 'rgba(255,255,255,.86)' });
+    txt('agachamento → quadríceps, glúteo máximo e adutores · remada → dorsal, trapézio, bíceps e deltoide posterior', 48, y2 + 84, { f: '400 22px "IBM Plex Sans"', cor: 'rgba(255,255,255,.86)' });
+    rodape();
+  }
+
+  window.__png = out.toDataURL('image/png');
+  window.__ms = 0;
+  window.__pronto = true;
+} catch (e) {
+  window.__erro = String((e && e.stack) || e);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<script type="importmap">{"imports":{"three":"/motor3d/node_modules/three/build/three.module.js"}}</script>
+<script type="module">
+// mede o tempo de um quadro: ?w=1000&h=700&am=1&n=8&q=alta|leve&pose=jab
+import { construirAnatomia } from './corpo/anatomia.js';
+import { criarRenderizador, ESTUDIO, QUALIDADES } from './corpo/renderizador.js';
+import { carregarRaioX } from './anatomia_interna/carregar.js';
+import * as BOXE from './boxe/golpes.js';
+const q = new URLSearchParams(location.search);
+try {
+  const gl = document.createElement('canvas');
+  if (q.get('ao') === '0') { QUALIDADES.leve.aoPassos = 0; QUALIDADES.alta.aoPassos = 0; }
+  if (q.get('marcha')) { QUALIDADES.leve.marchaPassos = Number(q.get('marcha')); }
+  const R = criarRenderizador(gl, construirAnatomia(), { qualidade: q.get('q') || 'alta' });
+  const estudio = q.get('sombra') === '0' ? { ...ESTUDIO, luzes: ESTUDIO.luzes.map((l) => ({ ...l, sombra: false })) } : ESTUDIO;
+  const chao = q.get('chao') !== '0';
+  const E = BOXE.estadoEm(q.get('pose') || 'jab', 'impacto');
+  let raioX = null;
+  if (q.get('rx')) {
+    await carregarRaioX(R);
+    raioX = { lutador: 0, base: 0.1, borda: 0.8, ganho: 1.2, camadas: true };
+  }
+  const w = Number(q.get('w') || 1000), h = Number(q.get('h') || 700), am = Number(q.get('am') || 1), n = Number(q.get('n') || 8);
+  const cam = { pos: [-3.3, 1.35, 0.3], alvo: [-0.02, 1.0, 0.3], mm: 32 };
+  const sync = () => R.gl.readPixels(0, 0, 1, 1, R.gl.RGBA, R.gl.UNSIGNED_BYTE, new Uint8Array(4));
+  R.desenhar({ estados: [E], camera: cam, w, h, amostras: 1, estudio, chao, raioX }); sync();
+  const ts = [];
+  for (let i = 0; i < n; i++) { const a = performance.now(); R.desenhar({ estados: [E], camera: cam, w, h, amostras: am, estudio, chao, raioX }); sync(); ts.push(performance.now() - a); }
+  ts.sort((a, b) => a - b);
+  window.__info = { q: q.get('q') || 'alta', w, h, mediana_ms: Math.round(ts[Math.floor(n / 2)]), min_ms: Math.round(ts[0]) };
+  window.__png = gl.toDataURL('image/png');
+  window.__ms = 0;
+  window.__pronto = true;
+} catch (e) { window.__erro = String(e.stack || e); }
+</script>

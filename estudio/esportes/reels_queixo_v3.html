@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Reels v3 · por que o queixo apaga</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>html,body{margin:0;background:#000}canvas{display:block;width:540px;height:960px}</style>
+<script type="importmap">{"imports":{"three":"/motor3d/node_modules/three/build/three.module.js"}}</script>
+</head>
+<body>
+<canvas id="saida"></canvas>
+<script type="module">
+// Reels v3 "Por que o soco no queixo apaga?" (~29 s, vertical, raio X). Cada quadro é função do tempo T.
+// 11 planos, cada um mostra uma coisa nova; a velocidade faz rampa (nada congela) e a voz corre sem silêncio.
+// Anatomia: BodyParts3D (© The Database Center for Life Science, CC BY-SA 2.1 Japão). Física: modelo simplificado.
+import * as THREE from 'three';
+import { construirAnatomia } from './corpo/anatomia.js';
+import { criarRenderizador, CANTOS, ESTUDIO } from './corpo/renderizador.js';
+import { carregarRaioX } from './anatomia_interna/carregar.js';
+import { IDX, paraMundo } from './corpo/esqueleto.js';
+import { minjerk } from './boxe/golpes.js';
+import { criarCenas } from './boxe/impacto.js';
+
+const q = new URLSearchParams(location.search);
+const W = Number(q.get('w') || 1080);
+const H = Number(q.get('h') || 1920);
+const AM = Number(q.get('am') || 3);
+const FPS = 30;
+const S = H / 1920;
+const AMARELO = '#ffd23f';
+const DRAMA = {
+  ...ESTUDIO,
+  fundoA: '#0d1016', fundoB: '#020305', chao: '#16181d',
+  ambCeu: [0.05, 0.055, 0.075], ambChao: [0.018, 0.018, 0.022],
+  luzes: [
+    { dir: [0.5, 0.82, 0.55], cor: [1.9, 1.75, 1.55], sombra: true },
+    { dir: [-0.75, 0.3, 0.55], cor: [0.07, 0.08, 0.11], sombra: false },
+    { dir: [0.7, 0.45, -0.75], cor: [1.5, 1.6, 2.1], sombra: false },
+    { dir: [-0.7, 0.4, -0.8], cor: [0.7, 0.78, 1.1], sombra: false },
+  ],
+  exposicao: 1.05, vinheta: 0.7,
+};
+try {
+  await document.fonts.load('400 120px "Bebas Neue"');
+  await document.fonts.load('600 34px "IBM Plex Sans"');
+  await document.fonts.load('600 28px "IBM Plex Mono"');
+  const cenas = criarCenas();
+  const { reto, gancho } = cenas;
+  const gl = document.createElement('canvas');
+  const R = criarRenderizador(gl, construirAnatomia(), { lutadores: 2 });
+  const man = await carregarRaioX(R);
+  const out = document.getElementById('saida');
+  out.width = W;
+  out.height = H;
+  const c = out.getContext('2d');
+  const V = (a) => new THREE.Vector3(...a);
+
+  // ---------- cérebro solto: o crânio gira e o cérebro (preso por mola) fica para trás ----------
+  const DT = 0.002;
+  const yawCab = (E) => { const f = new THREE.Vector3(0, 0, 1).applyQuaternion(E.R[IDX.cabeca]); return Math.atan2(f.x, f.z); };
+  function series(cena) {
+    const y0 = yawCab(cena.azul(0));
+    const h = [], b = [];
+    let tb = 0, wb = 0;
+    const k = 1400, cd = 2 * 0.28 * Math.sqrt(k);
+    for (let tau = 0; tau <= 2.4; tau += DT) {
+      let a = yawCab(cena.azul(tau)) - y0;
+      a = Math.atan2(Math.sin(a), Math.cos(a));
+      wb += (k * (a - tb) - cd * wb) * DT;
+      tb += wb * DT;
+      h.push(a); b.push(tb);
+    }
+    return { h, b };
+  }
+  const SER = new Map([[reto, series(reto)], [gancho, series(gancho)]]);
+  const amostra = (ar, tau) => ar[Math.min(ar.length - 1, Math.max(0, Math.round(tau / DT)))];
+  const hex2 = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const calor = (t) => { const a = hex2('#d9606f'), b = hex2('#ff3a14'); return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+  // camadas do raio X: só a cabeça (crânio translúcido, mandíbula, cérebro com atraso e calor, coluna do pescoço) ou o corpo todo
+  function camadas(cena, tau, { corpo = false, mand = null, cranio = 0.2 } = {}) {
+    const sr = SER.get(cena);
+    const dif = amostra(sr.b, tau) - amostra(sr.h, tau);
+    const forca = Math.min(1, Math.abs(dif) / 0.7);
+    const base = corpo
+      ? { ...Object.fromEntries(man.partes.map((p) => [p.id, {}])), coluna: { alfa: 0.6 }, costelas: { alfa: 0.35 }, esterno: { alfa: 0.4 }, pelve: { alfa: 0.4 }, diafragma: { alfa: 0.25 }, pulmao_d: { alfa: 0.35 }, pulmao_e: { alfa: 0.35 }, mandibula: { alfa: 0.3 }, olho_d: { alfa: 0.0001 }, olho_e: { alfa: 0.0001 } }
+      : { coluna: { alfa: 0.6 } };
+    base.cranio = { alfa: cranio };
+    base.mandibula = mand ? { alfa: 0.7, cor: mand } : { alfa: 0.32 };
+    base.cerebro = { cor: calor(forca), giroY: dif, pivo: [0, 1.7, -0.02] };
+    return { camadas: base, forca };
+  }
+
+  // ---------- tempo: rampa de velocidade (nunca zero) ----------
+  // impacto em ti (segundos do plano) com a animação em 'imp'; velocidade cai a vMin no impacto e volta
+  function rampa({ ti, imp, vAnt, vMin, vDep, w, dur }) {
+    const dt = 1 / 240;
+    const N = Math.ceil(dur / dt) + 2;
+    const v = (t) => { const k = Math.min(1, Math.abs(t - ti) / w); const s = k * k * (3 - 2 * k); return vMin + ((t < ti ? vAnt : vDep) - vMin) * s; };
+    const tab = new Float64Array(N);
+    const i0 = Math.min(N - 1, Math.max(0, Math.round(ti / dt)));
+    tab[i0] = imp;
+    for (let i = i0 + 1; i < N; i++) tab[i] = tab[i - 1] + 0.5 * (v((i - 1) * dt) + v(i * dt)) * dt;
+    for (let i = i0 - 1; i >= 0; i--) tab[i] = tab[i + 1] - 0.5 * (v((i + 1) * dt) + v(i * dt)) * dt;
+    return (tl) => { const x = Math.min(N - 2, Math.max(0, tl / dt)); const i = Math.floor(x); return tab[i] + (tab[i + 1] - tab[i]) * (x - i); };
+  }
+  // depois do impacto: começa em tau0 e a velocidade vai de v0 a v1 (suave)
+  const linear = (tau0, v0, v1, dur) => (tl) => { const u = Math.min(1, tl / dur); return tau0 + v0 * tl + (v1 - v0) * (tl * u) * 0.5; };
+
+  // ---------- câmeras ----------
+  const ease = (u) => minjerk(Math.min(1, Math.max(0, u)));
+  const lerpA = (a, b, s) => a.map((x, i) => x + (b[i] - x) * s);
+  const camLerp = (a, b, s) => ({ pos: lerpA(a.pos, b.pos, s), alvo: lerpA(a.alvo, b.alvo, s), mm: a.mm + (b.mm - a.mm) * s, up: a.up || [0, 1, 0] });
+  const cam = (pos, alvo, mm, up = [0, 1, 0]) => ({ pos, alvo, mm, up });
+  const topo = (cena, d, dz = -0.45, dx = 0, mm = 32) => cam([cena.pivo.x + dx, d, cena.pivo.z + dz], [cena.pivo.x + dx, 0, cena.pivo.z + dz], mm, [0, 0, 1]);
+  const orbita = (cena, az, raio, y, alvoY, mm) => { const a = THREE.MathUtils.degToRad(az); return cam([cena.pivo.x + raio * Math.sin(a), y, cena.pivo.z + raio * Math.cos(a)], [cena.pivo.x, alvoY, cena.pivo.z], mm); };
+  const P = (c) => c.pivo;
+
+  // ---------- os planos ----------
+  const PLANOS = [
+    { id: 'apagao', cena: gancho, dur: 2.9, tau: linear(gancho.impacto + 0.2, 0.22, 0.3, 2.9), corpo: true, mandibula: true,
+      cam: (tl) => camLerp(cam([P(gancho).x + 1.8, 0.55, P(gancho).z + 0.25], [P(gancho).x, 1.05, P(gancho).z], 30), cam([P(gancho).x + 1.25, 0.7, P(gancho).z - 0.95], [P(gancho).x, 0.95, P(gancho).z], 30), ease(tl / 2.9)),
+      titulo: ['POR QUE UM SOCO', 'NO QUEIXO APAGA?'], zoom: 0 },
+    { id: 'reto_topo', cena: reto, dur: 2.1, tau: rampa({ ti: 1.55, imp: reto.impacto, vAnt: 0.4, vMin: 0.07, vDep: 0.22, w: 1.1, dur: 2.1 }),
+      cam: (tl) => camLerp(topo(reto, 3.7, -0.22), topo(reto, 3.3, -0.2, 0.04), ease(tl / 2.1)),
+      trilha: true, eixo: true, alavanca: true, zoom: 0.35, legenda: { t: 'SOCO RETO', de: 0.15, ate: 1.4 } },
+    { id: 'reto_lado', cena: reto, dur: 2.1, tau: rampa({ ti: 0.1, imp: reto.impacto, vAnt: 0.2, vMin: 0.07, vDep: 0.24, w: 0.9, dur: 2.1 }),
+      cam: (tl) => camLerp(cam([P(reto).x + 1.2, 1.55, P(reto).z + 0.15], [P(reto).x, 1.62, P(reto).z], 36), cam([P(reto).x + 0.95, 1.65, P(reto).z - 0.5], [P(reto).x, 1.62, P(reto).z], 36), ease(tl / 2.1)), zoom: 0.15 },
+    { id: 'gancho_topo', cena: gancho, dur: 1.9, tau: rampa({ ti: 1.8, imp: gancho.impacto, vAnt: 0.4, vMin: 0.1, vDep: 0.2, w: 1.2, dur: 1.9 }),
+      cam: (tl) => camLerp(topo(gancho, 3.7, -0.22), topo(gancho, 3.3, -0.2, 0.04), ease(tl / 1.9)),
+      trilha: true, eixo: true, alavanca: true, zoom: 0.35, legenda: { t: 'GANCHO NO QUEIXO', de: 0.15, ate: 1.5 } },
+    { id: 'gancho_cerebro', cena: gancho, dur: 2.6, tau: rampa({ ti: 0.1, imp: gancho.impacto, vAnt: 0.2, vMin: 0.09, vDep: 0.16, w: 1.0, dur: 2.6 }),
+      cam: (tl) => camLerp(cam([P(gancho).x - 0.3, 1.78, P(gancho).z - 0.95], [P(gancho).x, 1.62, P(gancho).z], 55), cam([P(gancho).x + 1.0, 1.72, P(gancho).z - 0.5], [P(gancho).x, 1.62, P(gancho).z], 55), ease(tl / 2.6)), zoom: 0.3 },
+    { id: 'compara', dur: 2.1, dividida: true },
+    { id: 'alavanca_baixo', cena: gancho, dur: 2.4, tau: rampa({ ti: 1.5, imp: gancho.impacto, vAnt: 0.35, vMin: 0.08, vDep: 0.2, w: 1.0, dur: 2.4 }), mandibula: true,
+      cam: (tl) => camLerp(cam([P(gancho).x + 0.62, 0.95, P(gancho).z - 0.6], [P(gancho).x, 1.58, P(gancho).z], 34), cam([P(gancho).x + 0.5, 1.0, P(gancho).z + 0.4], [P(gancho).x, 1.58, P(gancho).z], 34), ease(tl / 2.4)),
+      eixo3d: true, zoom: 0.3 },
+    { id: 'alavanca_topo', cena: gancho, dur: 2.8, tau: linear(gancho.impacto + 0.04, 0.12, 0.15, 2.8), mandibula: true,
+      cam: (tl) => camLerp(topo(gancho, 3.6, 0.05, 0.0, 62), topo(gancho, 3.3, 0.05, 0.02, 62), ease(tl / 2.8)),
+      trilhaNariz: true, eixo: true, alavanca: true, zoom: 0 },
+    { id: 'cerebro_topo', cena: gancho, dur: 3.0, tau: linear(gancho.impacto + 0.03, 0.13, 0.13, 3.0), cranio: 0.1,
+      cam: (tl) => camLerp(topo(gancho, 3.5, 0.1, 0.0, 85), topo(gancho, 3.2, 0.1, 0.0, 85), ease(tl / 3.0)), zoom: 0 },
+    { id: 'cerebro_orbita', cena: gancho, dur: 3.2, tau: linear(gancho.impacto + 0.2, 0.2, 0.3, 3.2), cranio: 0.12,
+      cam: (tl) => orbita(gancho, 35 + 90 * ease(tl / 3.2), 1.05, 1.74 - 0.2 * ease(tl / 3.2), 1.62, 60), seguir: 1, zoom: 0 },
+    { id: 'final', cena: gancho, dur: 3.7, tau: linear(gancho.impacto + 0.5, 0.22, 0.2, 3.7), corpo: true,
+      cam: (tl) => orbita(gancho, 28 - 62 * ease(tl / 3.7), 1.5 + 2.2 * ease(tl / 3.7), 1.5 - 0.5 * ease(tl / 3.7), 1.45 - 0.55 * ease(tl / 3.7), 40 - 10 * ease(tl / 3.7)),
+      legenda: { t: ['NÃO É A FORÇA.', 'É O GIRO.'], de: 0.3, ate: 3.7, grande: true }, placa: true, zoom: 0, seguir: 0.6 },
+  ];
+  let t0 = 0;
+  for (const p of PLANOS) {
+    p.T0 = t0;
+    t0 += p.dur;
+    p.tImp = null;
+    if (p.tau && p.cena) for (let tl = 0; tl <= p.dur; tl += 0.01) if (p.tau(tl) >= p.cena.impacto) { if (tl > 0.02 && tl < p.dur - 0.05) p.tImp = tl; break; }
+  }
+  const DURACAO = t0;
+  const planoEm = (T) => PLANOS.find((p) => T < p.T0 + p.dur) || PLANOS[PLANOS.length - 1];
+
+  // ---------- projeção ----------
+  function projetor(cm, w = W, h = H, ox = 0) {
+    const pos = V(cm.pos);
+    const fwd = V(cm.alvo).sub(pos).normalize();
+    const up0 = V(cm.up || [0, 1, 0]);
+    const right = fwd.clone().cross(up0).normalize();
+    const up = right.clone().cross(fwd).normalize();
+    const tan = 18 / cm.mm;
+    return (p) => {
+      const d = p.clone().sub(pos);
+      const z = d.dot(fwd);
+      return [ox + w / 2 + (d.dot(right) / (z * tan)) * (h / 2), h / 2 - (d.dot(up) / (z * tan)) * (h / 2), z];
+    };
+  }
+
+  // ---------- desenho ----------
+  const alfaJanela = (tl, a, z, r = 0.2) => Math.min(1, Math.max(0, Math.min((tl - a) / r, (z - tl) / r)));
+  function texto(linhas, y, { tam = 104, cor = '#fff', alfa = 1, x = W / 2 } = {}) {
+    c.save();
+    c.globalAlpha = alfa;
+    c.textAlign = 'center';
+    c.textBaseline = 'alphabetic';
+    c.font = `400 ${Math.round(tam * S)}px "Bebas Neue"`;
+    c.letterSpacing = `${2 * S}px`;
+    [].concat(linhas).forEach((l, i) => {
+      const yy = y + i * tam * 0.98 * S;
+      c.lineWidth = 10 * S;
+      c.lineJoin = 'round';
+      c.strokeStyle = 'rgba(8,9,12,0.9)';
+      c.strokeText(l, x, yy);
+      c.fillStyle = cor;
+      c.fillText(l, x, yy);
+    });
+    c.restore();
+  }
+  function rotulo(s, x, y, { cor = AMARELO, tam = 30, alfa = 1 } = {}) {
+    c.save();
+    c.globalAlpha = alfa;
+    c.font = `600 ${Math.round(tam * S)}px "IBM Plex Mono"`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    const tw = c.measureText(s).width;
+    c.fillStyle = 'rgba(10,11,14,0.78)';
+    c.beginPath();
+    c.roundRect(x - tw / 2 - 14 * S, y - tam * S * 0.8, tw + 28 * S, tam * S * 1.6, 12 * S);
+    c.fill();
+    c.fillStyle = cor;
+    c.fillText(s, x, y);
+    c.restore();
+  }
+  const linha3d = (proj, pts, { cor = '#fff', lw = 4, alfa = 1, trac = null } = {}) => {
+    c.save();
+    c.globalAlpha = alfa;
+    c.strokeStyle = cor;
+    c.lineWidth = lw * S;
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    if (trac) c.setLineDash(trac.map((v) => v * S));
+    c.beginPath();
+    let ini = true;
+    for (const p of pts) {
+      const [x, y, z] = proj(p);
+      if (z <= 0) continue;
+      if (ini) { c.moveTo(x, y); ini = false; } else c.lineTo(x, y);
+    }
+    c.stroke();
+    c.restore();
+  };
+  const ponto = (proj, p, r = 9, cor = '#fff', alfa = 1) => {
+    const [x, y, z] = proj(p);
+    if (z <= 0) return;
+    c.save();
+    c.globalAlpha = alfa;
+    c.fillStyle = cor;
+    c.beginPath();
+    c.arc(x, y, r * S, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  };
+  const trilhaLuva = (cena, tau) => {
+    const pts = [];
+    for (let t = 0; t <= Math.min(tau, cena.g.dur); t += 0.006) {
+      const E = cena.vermelho(t);
+      const cto = E.P[IDX[`antebraco_${cena.g.lado}`]];
+      const p = E.P[IDX[`mao_${cena.g.lado}`]];
+      pts.push(p.clone().addScaledVector(p.clone().sub(cto).normalize(), 0.085));
+    }
+    return pts;
+  };
+  const trilhaNariz = (cena, tau) => {
+    const pts = [];
+    for (let t = cena.impacto - 0.01; t <= tau; t += 0.006) pts.push(paraMundo(cena.azul(t), IDX.cabeca, new THREE.Vector3(0, 1.665, 0.1)));
+    return pts;
+  };
+  function anel(proj, cena, tau, dur = 0.6) {
+    if (tau < cena.impacto) return;
+    const a = Math.max(0, 1 - (tau - cena.impacto) / dur);
+    if (a <= 0) return;
+    const [x, y, z] = proj(cena.contato);
+    if (z <= 0) return;
+    c.save();
+    c.globalAlpha = a;
+    c.strokeStyle = AMARELO;
+    c.lineWidth = 8 * S;
+    c.shadowColor = AMARELO;
+    c.shadowBlur = 24 * S;
+    c.beginPath();
+    c.arc(x, y, (50 + 90 * (1 - a)) * S, 0, Math.PI * 2);
+    c.stroke();
+    c.restore();
+  }
+  // o eixo do pescoço visto de cima e a linha do soco, com a distância entre os dois
+  function eixoAlavanca(proj, cena, a, { numero = true } = {}) {
+    const pivo = cena.pivo.clone();
+    linha3d(proj, [cena.tip.clone().addScaledVector(cena.dh, -0.75), cena.tip.clone().addScaledVector(cena.dh, 0.2)], { cor: '#fff', lw: 3, alfa: 0.8 * a, trac: [14, 12] });
+    const d = new THREE.Vector3(pivo.x - cena.tip.x, 0, pivo.z - cena.tip.z);
+    const pe = cena.tip.clone().addScaledVector(cena.dh, d.dot(cena.dh));
+    pe.y = pivo.y;
+    linha3d(proj, [pivo, pe], { cor: AMARELO, lw: 6, alfa: a });
+    const [px, py] = proj(pivo);
+    c.save();
+    c.globalAlpha = a;
+    c.strokeStyle = AMARELO;
+    c.lineWidth = 5 * S;
+    c.beginPath();
+    c.arc(px, py, 24 * S, 0, Math.PI * 2);
+    c.moveTo(px - 15 * S, py); c.lineTo(px + 15 * S, py);
+    c.moveTo(px, py - 15 * S); c.lineTo(px, py + 15 * S);
+    c.stroke();
+    c.restore();
+    if (numero) rotulo(`${(cena.alavanca * 100).toFixed(1).replace('.', ',')} cm`, px + 130 * S, py - 36 * S, { alfa: a, tam: 34, cor: '#fff' });
+  }
+
+  function sobreposicoes(T, p, cm, tau) {
+    const tl = T - p.T0;
+    const proj = projetor(cm);
+    const cena = p.cena;
+    if (p.titulo) texto(p.titulo, 200 * S, { alfa: Math.min(1, tl / 0.25) * Math.max(0, Math.min(1, (2.6 - tl) / 0.3)) });
+    if (p.legenda) {
+      const l = p.legenda;
+      const a = alfaJanela(tl, l.de, l.ate);
+      if (a > 0) texto(l.t, (l.grande ? 340 : 200) * S, { tam: l.grande ? 168 : 96, alfa: a, cor: l.grande ? AMARELO : '#fff' });
+    }
+    if (p.trilha) {
+      linha3d(proj, trilhaLuva(cena, tau), { cor: 'rgba(255,255,255,0.85)', lw: 6 });
+      if (tau >= cena.impacto) { const n = trilhaNariz(cena, tau); if (n.length) { linha3d(proj, n, { cor: AMARELO, lw: 7 }); ponto(proj, n[n.length - 1], 11, AMARELO); } }
+    }
+    if (p.trilhaNariz && tau >= cena.impacto) { const n = trilhaNariz(cena, tau); if (n.length) { linha3d(proj, n, { cor: AMARELO, lw: 8 }); ponto(proj, n[n.length - 1], 12, AMARELO); } }
+    if (p.eixo) eixoAlavanca(proj, cena, alfaJanela(tl, 0.5, p.dur - 0.1, 0.35), { numero: !!p.alavanca });
+    if (p.eixo3d) {
+      const a = alfaJanela(tl, 0.4, p.dur - 0.1, 0.35);
+      const pivo = cena.pivo.clone();
+      const base = pivo.clone(); base.y = 1.2;
+      const alto = pivo.clone(); alto.y = 1.95;
+      linha3d(proj, [base, alto], { cor: AMARELO, lw: 6, alfa: a, trac: [20, 10] });
+      const imp = cena.tip.clone();
+      const ch = pivo.clone(); ch.y = cena.tip.y;
+      linha3d(proj, [ch, imp], { cor: '#fff', lw: 7, alfa: a });
+      ponto(proj, ch, 9, AMARELO, a);
+      ponto(proj, imp, 9, '#fff', a);
+      const [mx, my] = proj(ch.clone().lerp(imp, 0.5));
+      rotulo('alavanca', mx, my - 40 * S, { alfa: a, tam: 26, cor: '#fff' });
+    }
+    if (p.placa) {
+      const a = alfaJanela(tl, 1.4, p.dur, 0.5);
+      if (a > 0) {
+        c.save();
+        c.globalAlpha = a;
+        c.fillStyle = 'rgba(10,11,14,0.82)';
+        c.beginPath();
+        c.roundRect(60 * S, 1480 * S, W - 120 * S, 250 * S, 22 * S);
+        c.fill();
+        c.textAlign = 'center';
+        c.fillStyle = '#fff';
+        c.font = `600 ${Math.round(38 * S)}px "IBM Plex Sans"`;
+        c.fillText('Boxeador olímpico, soco reto na cabeça:', W / 2, 1550 * S);
+        c.fillStyle = AMARELO;
+        c.font = `600 ${Math.round(46 * S)}px "IBM Plex Mono"`;
+        c.fillText('58 g  ·  6.343 rad/s² de giro', W / 2, 1625 * S);
+        c.fillStyle = 'rgba(255,255,255,0.65)';
+        c.font = `400 ${Math.round(26 * S)}px "IBM Plex Mono"`;
+        c.fillText('Walilko, Viano e Bir · Br J Sports Med, 2005', W / 2, 1685 * S);
+        c.restore();
+      }
+    }
+    // clarão e pulso vermelho no impacto
+    if (p.tImp != null) {
+      const d = tl - p.tImp;
+      if (d >= -0.02 && d < 0.14) { c.save(); c.globalAlpha = 0.5 * (1 - Math.max(0, d) / 0.14); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); c.restore(); }
+      if (d >= 0 && d < 0.8) {
+        const g = c.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.75);
+        g.addColorStop(0, 'rgba(160,10,20,0)');
+        g.addColorStop(1, 'rgba(160,10,20,0.5)');
+        c.save(); c.globalAlpha = Math.max(0, 1 - d / 0.8); c.fillStyle = g; c.fillRect(0, 0, W, H); c.restore();
+      }
+    }
+  }
+
+  // câmera com o impacto: a lente fecha, inclina e treme
+  function comImpacto(cm, p, tl) {
+    if (p.tImp == null) return cm;
+    const ti = p.tImp;
+    let z = 0;
+    if (tl < ti) z = ease((tl - (ti - 0.8)) / 0.8);
+    else z = 1 - ease((tl - (ti + 0.3)) / 1.4);
+    const out2 = { ...cm, mm: cm.mm * (1 + (p.zoom || 0.3) * z) };
+    const roll = THREE.MathUtils.degToRad(4) * (tl >= ti ? Math.exp(-(tl - ti) / 0.5) : 0);
+    const fwd = V(cm.alvo).sub(V(cm.pos)).normalize();
+    out2.up = V(cm.up || [0, 1, 0]).applyAxisAngle(fwd, roll).toArray();
+    if (tl >= ti) {
+      const k = Math.exp(-(tl - ti) / 0.12) * 0.02;
+      out2.pos = [cm.pos[0] + k * Math.sin(tl * 130), cm.pos[1] + k * Math.cos(tl * 110), cm.pos[2] + k * 0.6 * Math.sin(tl * 90)];
+    }
+    return out2;
+  }
+
+  const RX = { lutador: 1, base: 0.08, borda: 0.85, ganho: 1.25 };
+  // um quadro normal (um lutador em raio X)
+  function quadroNormal(T, p, tl) {
+    const tempos = [];
+    for (let i = 0; i < AM; i++) tempos.push(Math.max(0, p.tau(Math.max(0, tl + ((i + 0.5) / AM - 0.5) / (2 * FPS) * 0.2))));
+    const tau = Math.max(0, p.tau(tl));
+    const cena = p.cena;
+    let cm = comImpacto(p.cam(tl), p, tl);
+    if (p.seguir) {
+      // a câmera acompanha a cabeça quando o corpo cede
+      const d = cena.azul(tau).P[IDX.cabeca].clone().sub(cena.pivo).multiplyScalar(p.seguir);
+      cm = { ...cm, pos: [cm.pos[0] + d.x, cm.pos[1] + d.y, cm.pos[2] + d.z], alvo: [cm.alvo[0] + d.x, cm.alvo[1] + d.y, cm.alvo[2] + d.z] };
+    }
+    const cx = camadas(cena, tau, { corpo: !!p.corpo, mand: p.mandibula ? AMARELO : null, cranio: p.cranio ?? 0.2 });
+    R.desenhar({
+      lutadores: [{ estados: tempos.map((t) => cena.vermelho(t)), cores: CANTOS.vermelho }, { estados: tempos.map((t) => cena.azul(t)), cores: CANTOS.azul }],
+      camera: cm, w: W, h: H, amostras: AM, estudio: DRAMA, raioX: { ...RX, camadas: cx.camadas },
+      chaoCentro: [cena.pivo.x, 0, cena.pivo.z - 0.3], chaoRaio: 2.3,
+    });
+    c.drawImage(gl, 0, 0);
+    sobreposicoes(T, p, cm, tau);
+  }
+  // tela dividida: reto à esquerda, gancho à direita, os dois de cima, depois do impacto
+  function quadroDividido(T, p, tl) {
+    const w2 = Math.round(W / 2);
+    [[reto, 0, 'RETO'], [gancho, w2, 'GANCHO']].forEach(([cena, ox, nome]) => {
+      const tau = cena.impacto - 0.03 + 0.2 * tl;
+      const cm = topo(cena, 2.9, -0.3, 0.0, 34);
+      const cx = camadas(cena, tau, { mand: AMARELO, cranio: 0.15 });
+      R.desenhar({
+        lutadores: [{ estados: [cena.vermelho(tau)], cores: CANTOS.vermelho }, { estados: [cena.azul(tau)], cores: CANTOS.azul }],
+        camera: cm, w: w2, h: H, amostras: AM, estudio: DRAMA, raioX: { ...RX, camadas: cx.camadas },
+        chaoCentro: [cena.pivo.x, 0, cena.pivo.z - 0.3], chaoRaio: 2.3,
+      });
+      c.drawImage(gl, ox, 0);
+      const pr = projetor(cm, w2, H, ox);
+      const n = trilhaNariz(cena, tau);
+      if (n.length) {
+        linha3d(pr, n, { cor: AMARELO, lw: 8 });
+        ponto(pr, n[n.length - 1], 12, AMARELO);
+      }
+      texto(nome, 215 * S, { tam: 100, x: ox + w2 / 2, alfa: alfaJanela(tl, 0.1, p.dur, 0.25) });
+    });
+    c.save();
+    c.fillStyle = 'rgba(255,255,255,0.35)';
+    c.fillRect(Math.round(W / 2) - 1.5 * S, 0, 3 * S, H);
+    c.restore();
+  }
+
+  function renderAt(T) {
+    const p = planoEm(T);
+    const tl = Math.min(p.dur, T - p.T0);
+    if (p.dividida) quadroDividido(T, p, tl);
+    else quadroNormal(T, p, tl);
+  }
+
+  window.__motor = {
+    duracao: DURACAO,
+    fps: FPS,
+    renderAt,
+    capturar: (tipo = 'image/png') => out.toDataURL(tipo, 0.95),
+    blocos: PLANOS.map((p) => ({ titulo: p.id, tag: p.id, T0: p.T0, dur: p.dur, tImp: p.tImp })),
+  };
+  window.__pronto = true;
+} catch (e) {
+  window.__erro = String((e && e.stack) || e);
+}
+</script>
+</body>
+</html>

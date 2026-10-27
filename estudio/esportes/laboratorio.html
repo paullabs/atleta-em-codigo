@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Laboratório do atleta</title>
+<style>html,body{margin:0;background:#111}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/motor3d/node_modules/three/build/three.module.js","three/addons/":"/motor3d/node_modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+<script type="module">
+// Fotos de teste do corpo: ?vistas=0,45,90,180&pose=neutra&w=420&h=760&mm=85&el=4&alvo=0.95&musc=0&am=8
+import * as THREE from 'three';
+import { construirAnatomia, MUSCULOS } from './corpo/anatomia.js';
+import { criarRenderizador, ESTUDIO, CANTOS } from './corpo/renderizador.js';
+import { carregarRaioX } from './anatomia_interna/carregar.js';
+import { estadoRepouso, posicionar } from './corpo/esqueleto.js';
+import { posar, posturaNeutra } from './corpo/pose.js';
+import * as BOXE from './boxe/golpes.js';
+
+const q = new URLSearchParams(location.search);
+try {
+  const anat = construirAnatomia({ luvas: q.get('luvas') !== '0', calcao: q.get('calcao') !== '0' });
+  const gl = document.createElement('canvas');
+  const dupla = q.get('dupla') ? Number(q.get('dupla')) : 0; // distância do segundo lutador (canto azul), de frente
+  const R = criarRenderizador(gl, anat, { lutadores: dupla ? 2 : 1 });
+  // raio X: ?raiox=1&camadas=tudo ou cranio+cerebro+coluna (ids em anatomia_interna/preparar.mjs)
+  let raioX = null;
+  if (q.get('raiox')) {
+    await carregarRaioX(R);
+    const cm = q.get('camadas') || 'tudo';
+    raioX = { lutador: 0, base: Number(q.get('base') ?? 0.1), borda: Number(q.get('borda') ?? 0.75), ganho: Number(q.get('ganho') ?? 1.2), camadas: cm === 'tudo' ? true : Object.fromEntries(cm.split('+').map((t) => { const [id, a] = t.split(':'); return [id, a ? { alfa: Number(a) } : {}]; })) };
+  }
+  const pose = q.get('pose') || 'neutra';
+  const t = q.get('t') ?? 0;
+  let E;
+  if (pose === 'repouso') E = estadoRepouso();
+  else if (pose === 'neutra') E = posar(posturaNeutra());
+  else E = BOXE.estadoEm(pose, t);
+  const vistas = (q.get('vistas') || '0,45,90,180').split(',').map(Number);
+  const w = Number(q.get('w') || 420);
+  const h = Number(q.get('h') || 760);
+  const mm = Number(q.get('mm') || 85);
+  const el = THREE.MathUtils.degToRad(Number(q.get('el') || 4));
+  const alvo = (q.get('alvo') || '0,0.95,0').split(',').map(Number);
+  const dist = Number(q.get('dist') || 0);
+  const am = Number(q.get('am') || 8);
+  const musc = q.get('musc') === '1' ? Object.fromEntries(MUSCULOS.map(([id], i) => [id, { cor: `hsl(${(i * 47) % 360}, 75%, 55%)` }])) : (q.get('musc') ? Object.fromEntries(q.get('musc').split('+').map((id) => [id, { cor: '#ff3d1f' }])) : null);
+  const out = document.createElement('canvas');
+  out.width = w * vistas.length;
+  out.height = h;
+  document.body.appendChild(out);
+  const c = out.getContext('2d');
+  const t0 = performance.now();
+  for (const [i, az] of vistas.entries()) {
+    const a = THREE.MathUtils.degToRad(az);
+    // distância para o corpo (1,9 m) caber na altura do quadro com a lente dada
+    const tanv = (h > w ? 36 : 24) / 2 / mm;
+    const d = dist || (1.05 / tanv) * 1.08;
+    const pos = [alvo[0] + d * Math.sin(a) * Math.cos(el), alvo[1] + d * Math.sin(el), alvo[2] + d * Math.cos(a) * Math.cos(el)];
+    // cores por vista: ?cores=luva:short,luva:short (hex sem #)
+    const cv = q.get('cores') ? q.get('cores').split(',')[i] : null;
+    const estudio = cv ? { ...ESTUDIO, cores: { ...ESTUDIO.cores, luva: '#' + cv.split(':')[0], faixa: '#' + cv.split(':')[0], short: '#' + cv.split(':')[1], cos: '#' + cv.split(':')[1] } } : ESTUDIO;
+    const lutadores = dupla ? [{ estados: [E], cores: CANTOS.vermelho }, { estados: [posicionar(BOXE.estadoEm(pose === 'repouso' ? 'neutra' : pose, t), [0, 0, dupla], 180)], cores: CANTOS.azul }] : null;
+    R.desenhar({ estados: [E], lutadores, camera: { pos, alvo, mm }, w, h, amostras: am, musculos: musc, estudio, raioX });
+    c.drawImage(gl, i * w, 0);
+  }
+  window.__ms = performance.now() - t0;
+  window.__png = out.toDataURL('image/png');
+  window.__pronto = true;
+} catch (e) {
+  window.__erro = String((e && e.stack) || e);
+}
+</script>
+</body>
+</html>

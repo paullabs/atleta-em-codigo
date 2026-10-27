@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<script type="importmap">{"imports":{"three":"/motor3d/node_modules/three/build/three.module.js"}}</script>
+<script type="module">
+// fotos do impacto: ?cena=reto|gancho&ts=0,0.1,0.3&az=-60&el=10&w=360&h=640&dist=2.4&alvo=...
+import * as THREE from 'three';
+import { construirAnatomia } from './corpo/anatomia.js';
+import { criarRenderizador, CANTOS } from './corpo/renderizador.js';
+import { carregarRaioX } from './anatomia_interna/carregar.js';
+import { criarCenas } from './boxe/impacto.js';
+const q = new URLSearchParams(location.search);
+try {
+  const cenas = criarCenas();
+  const cena = cenas[q.get('cena') || 'gancho'];
+  const gl = document.createElement('canvas');
+  const R = criarRenderizador(gl, construirAnatomia(), { lutadores: 2 });
+  let raioX = null;
+  if (q.get('rx')) {
+    await carregarRaioX(R);
+    const cm = q.get('camadas') || 'cranio:0.2+mandibula:0.3+cerebro+coluna:0.6+costelas:0.45';
+    raioX = { lutador: 1, base: 0.1, borda: 0.8, ganho: 1.2, camadas: cm === 'tudo' ? true : Object.fromEntries(cm.split('+').map((t) => { const [id, a] = t.split(':'); return [id, a ? { alfa: Number(a) } : {}]; })) };
+  }
+  const ts = (q.get('ts') || '-0.05,0,0.1,0.3').split(',').map(Number);
+  const w = Number(q.get('w') || 360), h = Number(q.get('h') || 640);
+  const az = THREE.MathUtils.degToRad(Number(q.get('az') || -60)), el = THREE.MathUtils.degToRad(Number(q.get('el') || 10));
+  const dist = Number(q.get('dist') || 2.4), mm = Number(q.get('mm') || 40);
+  const alvo = cena.contato.toArray(); alvo[1] = Number(q.get('ay') || 1.4);
+  const out = document.createElement('canvas'); out.width = w * ts.length; out.height = h; document.body.appendChild(out);
+  const c = out.getContext('2d');
+  ts.forEach((t, i) => {
+    const tau = cena.impacto + t;
+    const pos = [alvo[0] + dist * Math.sin(az) * Math.cos(el), alvo[1] + dist * Math.sin(el), alvo[2] + dist * Math.cos(az) * Math.cos(el)];
+    R.desenhar({ lutadores: [{ estados: [cena.vermelho(tau)], cores: CANTOS.vermelho }, { estados: [cena.azul(tau)], cores: CANTOS.azul }], camera: { pos, alvo, mm }, w, h, amostras: 4,
+      musculos: q.get('z') ? { [q.get('z')]: { intensidade: 2, cor: '#ffd23f' } } : null, destaqueLutador: 1, raioX, chaoCentro: [alvo[0], 0, alvo[2]], chaoRaio: 2 });
+    c.drawImage(gl, i * w, 0);
+  });
+  window.__png = out.toDataURL('image/png'); window.__ms = 0; window.__pronto = true;
+} catch (e) { window.__erro = String(e.stack || e); }
+</script>

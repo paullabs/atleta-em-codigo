@@ -1,0 +1,406 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atleta de Boxe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* layout: estúdio escuro de uma tela só; a vista 3D ocupa tudo, controles numa faixa embaixo e a ficha do golpe flutuando no canto */
+:root {
+  --fundo: #121418;
+  --painel: #1b1e24;
+  --linha: #2c3038;
+  --texto: #eef0f3;
+  --suave: #9aa1ad;
+  --luva: #e2323b;
+  --calcao: #3d6ff0;
+  --marca: #ffd23f;
+  --f-titulo: "Bebas Neue", "Oswald", Impact, sans-serif;
+  --f-texto: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-dado: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--fundo); color: var(--texto); font-family: var(--f-texto); display: flex; flex-direction: column; overflow: hidden; }
+header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-block: 10px 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header h1 { margin: 0; font-family: var(--f-titulo); font-weight: 400; font-size: 34px; letter-spacing: 1px; line-height: 1; }
+header p { margin: 0; color: var(--suave); font-family: var(--f-dado); font-size: 12px; }
+main { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.palco { position: relative; flex: 1; min-height: 0; }
+#vista, #sobre { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#vista { cursor: grab; touch-action: none; }
+#vista:active { cursor: grabbing; }
+#sobre { pointer-events: none; }
+#ficha { position: absolute; z-index: 2; top: 12px; left: max(16px, env(safe-area-inset-left, 0px)); width: min(330px, calc(100% - 32px)); background: color-mix(in srgb, var(--painel) 88%, transparent); border: 1px solid var(--linha); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+#ficha h2 { margin: 0; font-family: var(--f-titulo); font-weight: 400; font-size: 28px; letter-spacing: .5px; line-height: 1; }
+#ficha ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; line-height: 1.35; }
+#ficha .dados { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--f-dado); font-size: 12px; color: var(--suave); font-variant-numeric: tabular-nums; }
+#ficha .dados b { color: var(--texto); font-weight: 600; }
+#musc { font-size: 12px; color: var(--suave); }
+#musc b { color: #ff8a5c; font-weight: 600; }
+#aviso { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: 10px; font-family: var(--f-dado); font-size: 11px; color: var(--suave); }
+nav { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; padding-block: 10px 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-top: 1px solid var(--linha); background: var(--painel); }
+.grupo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.grupo > span { font-family: var(--f-dado); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--suave); margin-right: 2px; }
+button { font: 600 13px var(--f-texto); color: var(--texto); background: transparent; border: 1px solid var(--linha); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--suave); }
+button[aria-pressed="true"] { background: var(--texto); color: var(--fundo); border-color: var(--texto); }
+button.golpe[aria-pressed="true"] { background: var(--texto); border-color: var(--texto); color: var(--fundo); }
+#l-vermelho[aria-pressed="true"] { background: var(--luva); border-color: var(--luva); color: #fff; }
+#l-azul[aria-pressed="true"] { background: var(--calcao); border-color: var(--calcao); color: #fff; }
+#l-dois[aria-pressed="true"] { background: linear-gradient(90deg, var(--luva) 50%, var(--calcao) 50%); border-color: var(--texto); color: #fff; }
+button:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+#erro { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--suave); }
+@media (max-width: 640px) {
+  header h1 { font-size: 28px; }
+  header p { display: none; }
+  #ficha { position: static; width: auto; border-radius: 0; border-width: 1px 0 0; padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); gap: 4px; background: var(--painel); }
+  #ficha h2 { font-size: 22px; }
+  #ficha ul { list-style: none; padding: 0; font-size: 14px; min-height: 2.7em; }
+  #ficha li { display: none; }
+  #ficha li.ativa { display: block; }
+  nav { flex-wrap: nowrap; overflow-x: auto; gap: 18px; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  .grupo { flex-wrap: nowrap; flex: none; }
+  #aviso { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<header>
+  <h1>Atleta de Boxe</h1>
+  <p>corpo humano feito em código · arraste para girar a câmera · role para aproximar</p>
+</header>
+<main>
+  <div class="palco">
+    <canvas id="vista" aria-label="Lutador em 3D"></canvas>
+    <canvas id="sobre" aria-hidden="true"></canvas>
+    <div id="aviso"></div>
+  </div>
+  <section id="ficha" aria-live="polite">
+    <h2 id="ficha-titulo">Jab</h2>
+    <ul id="ficha-dicas"></ul>
+    <div class="dados" id="ficha-dados"></div>
+    <div id="musc" hidden></div>
+  </section>
+  <div id="erro" hidden></div>
+</main>
+<nav aria-label="Controles">
+  <div class="grupo" role="group" aria-label="Lutador">
+    <span>Lutador</span>
+    <button class="canto" id="l-vermelho" data-quem="vermelho" aria-pressed="true">Vermelho</button>
+    <button class="canto" id="l-azul" data-quem="azul">Azul</button>
+    <button class="canto" id="l-dois" data-quem="dois">Os dois</button>
+  </div>
+  <div class="grupo" role="group" aria-label="Golpe">
+    <span>Golpe</span>
+    <button class="golpe" id="g-guarda" data-golpe="guarda">Guarda</button>
+    <button class="golpe" id="g-jab" data-golpe="jab" aria-pressed="true">Jab</button>
+    <button class="golpe" id="g-direto" data-golpe="direto">Direto</button>
+    <button class="golpe" id="g-gancho" data-golpe="gancho">Gancho</button>
+    <button class="golpe" id="g-upper" data-golpe="upper">Uppercut</button>
+    <button class="golpe" id="g-combo" data-golpe="combo">1·2·3·2</button>
+  </div>
+  <div class="grupo" role="group" aria-label="Velocidade">
+    <span>Velocidade</span>
+    <button id="v-1" data-vel="1">1×</button>
+    <button id="v-05" data-vel="0.5">½×</button>
+    <button id="v-025" data-vel="0.25" aria-pressed="true">¼×</button>
+    <button id="v-01" data-vel="0.1">⅒×</button>
+    <button id="pausa">Pausar</button>
+  </div>
+  <div class="grupo" role="group" aria-label="Câmera">
+    <span>Câmera</span>
+    <button id="c-lado" data-cam="lado" aria-pressed="true">Lado</button>
+    <button id="c-frente" data-cam="frente">Adversário</button>
+    <button id="c-34" data-cam="34">3/4</button>
+    <button id="c-cima" data-cam="cima">Cima</button>
+    <button id="c-costas" data-cam="costas">Costas</button>
+  </div>
+  <div class="grupo" role="group" aria-label="Mostrar">
+    <span>Mostrar</span>
+    <button id="t-rastro" aria-pressed="true">Rastro</button>
+    <button id="t-musc">Músculos</button>
+  </div>
+</nav>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { construirAnatomia, MUSCULOS } from './corpo/anatomia.js';
+import { criarRenderizador, CANTOS } from './corpo/renderizador.js';
+import { IDX, posicionar } from './corpo/esqueleto.js';
+import { posar } from './corpo/pose.js';
+import { GOLPES, ALVOS, guarda, anguloCotovelo } from './boxe/golpes.js';
+
+const $ = (id) => document.getElementById(id);
+const DICAS = {
+  guarda: ['Pé de trás a 45°, calcanhar levantado', 'Joelhos levemente dobrados', 'Queixo baixo, luvas no rosto', 'Cotovelos fechados, protegendo a costela'],
+  jab: ['Sai reto da guarda, sem armar', 'Punho gira: palma para baixo no impacto', 'Ombro da frente sobe e protege o queixo', 'Volta pela mesma linha; a outra mão fica no rosto'],
+  direto: ['Pé de trás gira na ponta, calcanhar para fora', 'Quadril e ombro giram para o alvo', 'Braço reto até o queixo, palma para baixo', 'Mão da frente volta e fica no rosto'],
+  gancho: ['Cotovelo sobe até a altura do ombro', 'Braço em 90°, travado; palma para baixo', 'Quem leva o soco é o giro do corpo', 'Pé da frente gira, calcanhar para fora'],
+  upper: ['Dobra os joelhos e desce só um palmo', 'As pernas empurram para cima', 'Punho sobe pelo centro, palma para você', 'Mão da frente protege o rosto'],
+  combo: ['Jab, direto, gancho e direto', 'Cada mão volta ao rosto antes da próxima sair', 'O corpo gira de um lado para o outro'],
+};
+const NOMES = { guarda: 'Guarda', jab: 'Jab', direto: 'Direto', gancho: 'Gancho', upper: 'Uppercut', combo: '1 · 2 · 3 · 2' };
+// músculos que mais trabalham em cada golpe (motor principal e a rotação)
+const USO = {
+  guarda: ['deltoide_ant', 'trapezio', 'quadriceps', 'panturrilha'],
+  jab: ['deltoide_ant', 'triceps', 'serratil', 'obliquos'],
+  direto: ['panturrilha', 'gluteo_max', 'obliquos', 'peitoral', 'deltoide_ant', 'triceps', 'serratil'],
+  gancho: ['deltoide_lat', 'deltoide_ant', 'peitoral', 'obliquos', 'biceps', 'panturrilha'],
+  upper: ['quadriceps', 'gluteo_max', 'obliquos', 'biceps', 'deltoide_ant'],
+  combo: ['deltoide_ant', 'triceps', 'obliquos', 'peitoral', 'panturrilha', 'gluteo_max'],
+};
+const NOME_MUSC = Object.fromEntries(MUSCULOS);
+const CAMS = { lado: [-90, 6], frente: [0, 8], 34: [-40, 10], cima: [-40, 55], costas: [160, 10] };
+
+let golpe = 'jab';
+let vel = 0.25;
+let pausado = false;
+let rastro = true;
+let mostrarMusc = false;
+let quem = 'vermelho';
+const orb = { az: -90, el: 6, dist: 3.3 };
+const ALVO_CAM = [-0.02, 1.0, 0.3];
+// os dois lado a lado: o azul fica à direita do vermelho e faz o mesmo golpe um pouco depois
+const DUPLA = { pos: [-1.35, 0, 0.12], atraso: 0.12 };
+
+function sequencia(nome) {
+  if (nome === 'guarda') return { dur: 2, em: () => guarda(), golpes: [] };
+  const lista = nome === 'combo' ? ['jab', 'direto', 'gancho', 'direto'] : [nome];
+  const itens = [];
+  let t = 0.6;
+  for (const n of lista) {
+    itens.push({ n, t0: t });
+    t += GOLPES[n].dur + 0.04;
+  }
+  const dur = t + 0.7;
+  return {
+    dur,
+    golpes: itens,
+    em: (tc) => {
+      for (const it of itens) if (tc >= it.t0 && tc <= it.t0 + GOLPES[it.n].dur) return GOLPES[it.n].postura(tc - it.t0);
+      return guarda();
+    },
+  };
+}
+
+try {
+  const vista = $('vista');
+  const sobre = $('sobre');
+  const R = criarRenderizador(vista, construirAnatomia(), { qualidade: 'leve', lutadores: 2 });
+  const c = sobre.getContext('2d');
+  let seq = sequencia(golpe);
+  let tempo = 0;
+  let sujo = true; // algo mudou (golpe, câmera, botão): redesenha mesmo com a animação pausada
+
+  function ficha() {
+    $('ficha-titulo').textContent = NOMES[golpe];
+    $('ficha-dicas').replaceChildren(...DICAS[golpe].map((d, i) => Object.assign(document.createElement('li'), { textContent: d, className: i === 0 ? 'ativa' : '' })));
+    const dados = [];
+    if (GOLPES[golpe]) {
+      const g = GOLPES[golpe];
+      const E = posar(g.postura(g.impacto));
+      dados.push(['impacto', `${Math.round(g.impacto * 1000)} ms`], ['cotovelo', `${anguloCotovelo(E, g.lado).toFixed(0)}°`], ['volta', `${Math.round(g.dur * 1000)} ms`]);
+    }
+    $('ficha-dados').replaceChildren(...dados.map(([k, v]) => {
+      const s = document.createElement('span');
+      s.append(`${k} `, Object.assign(document.createElement('b'), { textContent: v }));
+      return s;
+    }));
+    const m = $('musc');
+    m.hidden = !mostrarMusc;
+    m.replaceChildren('Acesos: ', Object.assign(document.createElement('b'), { textContent: USO[golpe].map((id) => NOME_MUSC[id]).join(', ') }));
+  }
+  ficha();
+  // no celular a ficha mostra uma dica por vez
+  setInterval(() => {
+    const itens = [...document.querySelectorAll('#ficha-dicas li')];
+    const i = itens.findIndex((li) => li.classList.contains('ativa'));
+    itens.forEach((li, k) => li.classList.toggle('ativa', k === (i + 1) % itens.length));
+  }, 2800);
+
+  function marcar(seletor, ativo) {
+    document.querySelectorAll(seletor).forEach((b) => b.setAttribute('aria-pressed', String(b === ativo)));
+    sujo = true;
+  }
+  document.querySelectorAll('[data-golpe]').forEach((b) => b.addEventListener('click', () => {
+    golpe = b.dataset.golpe;
+    seq = sequencia(golpe);
+    tempo = 0;
+    marcar('[data-golpe]', b);
+    ficha();
+  }));
+  document.querySelectorAll('[data-quem]').forEach((b) => b.addEventListener('click', () => {
+    quem = b.dataset.quem;
+    marcar('[data-quem]', b);
+    // lado a lado, a câmera de lado esconde um atrás do outro: abre de frente
+    if (quem === 'dois') {
+      [orb.az, orb.el] = CAMS.frente;
+      marcar('[data-cam]', $('c-frente'));
+    }
+  }));
+  document.querySelectorAll('[data-vel]').forEach((b) => b.addEventListener('click', () => {
+    vel = Number(b.dataset.vel);
+    marcar('[data-vel]', b);
+  }));
+  $('pausa').addEventListener('click', () => {
+    pausado = !pausado;
+    $('pausa').textContent = pausado ? 'Continuar' : 'Pausar';
+    $('pausa').setAttribute('aria-pressed', String(pausado));
+    sujo = true;
+  });
+  document.querySelectorAll('[data-cam]').forEach((b) => b.addEventListener('click', () => {
+    [orb.az, orb.el] = CAMS[b.dataset.cam];
+    marcar('[data-cam]', b);
+  }));
+  $('t-rastro').addEventListener('click', () => {
+    rastro = !rastro;
+    $('t-rastro').setAttribute('aria-pressed', String(rastro));
+    sujo = true;
+  });
+  $('t-musc').addEventListener('click', () => {
+    mostrarMusc = !mostrarMusc;
+    $('t-musc').setAttribute('aria-pressed', String(mostrarMusc));
+    ficha();
+    sujo = true;
+  });
+
+  // câmera livre: arrastar gira, rolar aproxima
+  let arrasto = null;
+  vista.addEventListener('pointerdown', (e) => {
+    arrasto = { x: e.clientX, y: e.clientY, az: orb.az, el: orb.el };
+    vista.setPointerCapture(e.pointerId);
+  });
+  vista.addEventListener('pointermove', (e) => {
+    if (!arrasto) return;
+    orb.az = arrasto.az - (e.clientX - arrasto.x) * 0.35;
+    orb.el = Math.max(-5, Math.min(75, arrasto.el + (e.clientY - arrasto.y) * 0.25));
+    marcar('[data-cam]', null);
+  });
+  const soltar = () => {
+    arrasto = null;
+    sujo = true;
+  };
+  vista.addEventListener('pointerup', soltar);
+  vista.addEventListener('pointercancel', soltar);
+  vista.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    orb.dist = Math.max(1.6, Math.min(6, orb.dist * (1 + e.deltaY * 0.001)));
+    sujo = true;
+  }, { passive: false });
+  addEventListener('resize', () => (sujo = true));
+
+  function camera(w, h) {
+    const a = THREE.MathUtils.degToRad(orb.az);
+    const e = THREE.MathUtils.degToRad(orb.el);
+    const dois = quem === 'dois';
+    const alvo = dois ? [ALVO_CAM[0] + DUPLA.pos[0] / 2, ALVO_CAM[1], ALVO_CAM[2]] : ALVO_CAM;
+    const dist = orb.dist + (dois ? 1.1 : 0);
+    const pos = [alvo[0] + dist * Math.sin(a) * Math.cos(e), alvo[1] + dist * Math.sin(e), alvo[2] + dist * Math.cos(a) * Math.cos(e)];
+    return { pos, alvo, mm: h > w ? 30 : 32 };
+  }
+  function projetor(cam, w, h) {
+    const pos = new THREE.Vector3(...cam.pos);
+    const fwd = new THREE.Vector3(...cam.alvo).sub(pos).normalize();
+    const right = fwd.clone().cross(new THREE.Vector3(0, 1, 0)).normalize();
+    const up = right.clone().cross(fwd).normalize();
+    const tan = (h > w ? 36 : 24) / 2 / cam.mm;
+    return (p) => {
+      const d = p.clone().sub(pos);
+      const z = d.dot(fwd);
+      return [w / 2 + (d.dot(right) / (z * tan)) * (h / 2), h / 2 - (d.dot(up) / (z * tan)) * (h / 2), z];
+    };
+  }
+  const centroDaLuva = (E, lado) => {
+    const cto = E.P[IDX[`antebraco_${lado}`]];
+    const p = E.P[IDX[`mao_${lado}`]];
+    return p.clone().addScaledVector(p.clone().sub(cto).normalize(), 0.085);
+  };
+  // rastros pré-calculados por golpe (posições no mundo)
+  const caminhos = {};
+  for (const n of Object.keys(GOLPES)) {
+    const g = GOLPES[n];
+    caminhos[n] = [];
+    for (let t = 0; t <= g.dur + 1e-6; t += 0.006) caminhos[n].push(centroDaLuva(posar(g.postura(t)), g.lado));
+  }
+
+  // leve de propósito: no máximo 30 quadros por segundo, resolução menor enquanto mexe,
+  // um quadro caprichado quando pausa e nada enquanto a aba está escondida ou nada mudou
+  const QPS = 30;
+  const PX_MOVENDO = 0.42e6;
+  const PX_PARADO = 1.1e6;
+  let ultimo = performance.now();
+  let ultimoDesenho = 0;
+  function quadro(agora) {
+    requestAnimationFrame(quadro);
+    const dt = Math.min(0.1, (agora - ultimo) / 1000);
+    ultimo = agora;
+    if (document.hidden) return;
+    if (!pausado) tempo = (tempo + dt * vel) % seq.dur;
+    if (pausado && !arrasto && !sujo) return;
+    if (agora - ultimoDesenho < 1000 / QPS - 3) return;
+    ultimoDesenho = agora;
+    const quieto = pausado && !arrasto;
+    const box = vista.parentElement.getBoundingClientRect();
+    const orcamento = quieto ? PX_PARADO : quem === 'dois' ? PX_MOVENDO * 0.8 : PX_MOVENDO;
+    const escala = Math.min(1, Math.sqrt(orcamento / Math.max(1, box.width * box.height)));
+    const w = Math.max(2, Math.round(box.width * escala));
+    const h = Math.max(2, Math.round(box.height * escala));
+    const cam = camera(w, h);
+    const E = posar(seq.em(tempo));
+    const musc = mostrarMusc ? Object.fromEntries(USO[golpe].map((id) => [id, { cor: '#ff5a2a' }])) : null;
+    const lutadores = [{ estados: [E], cores: quem === 'azul' ? CANTOS.azul : CANTOS.vermelho }];
+    if (quem === 'dois') {
+      const tb = (tempo - DUPLA.atraso + seq.dur) % seq.dur;
+      lutadores.push({ estados: [posicionar(posar(seq.em(tb)), DUPLA.pos, 0)], cores: CANTOS.azul });
+    }
+    R.desenhar({ lutadores, camera: cam, w, h, amostras: quieto ? 4 : 1, suavizar: !quieto, musculos: musc, chaoCentro: quem === 'dois' ? [DUPLA.pos[0] / 2, 0, 0.06] : [0, 0, 0], chaoRaio: quem === 'dois' ? 2.4 : 1.7 });
+    sujo = false;
+    // sobreposição: rastro da luva e o alvo
+    const sw = Math.round(box.width);
+    const sh = Math.round(box.height);
+    if (sobre.width !== sw) sobre.width = sw;
+    if (sobre.height !== sh) sobre.height = sh;
+    c.clearRect(0, 0, sw, sh);
+    if (rastro && seq.golpes.length) {
+      const proj = projetor(cam, sobre.width, sobre.height);
+      for (const it of seq.golpes) {
+        const g = GOLPES[it.n];
+        const pts = caminhos[it.n];
+        const tl = tempo - it.t0;
+        const fim = tl < 0 ? 0 : Math.min(pts.length, Math.floor((tl / g.dur) * pts.length) + 1);
+        const alvo = it.n === 'jab' || it.n === 'direto' ? ALVOS.reto : ALVOS[it.n].face;
+        const [ax, ay, az] = proj(alvo);
+        if (az > 0 && tl >= 0) {
+          c.strokeStyle = 'rgba(255,255,255,0.45)';
+          c.lineWidth = 2;
+          c.setLineDash([7, 6]);
+          c.beginPath();
+          c.arc(ax, ay, (0.075 / (az * ((sobre.height > sobre.width ? 36 : 24) / 2 / cam.mm))) * (sobre.height / 2), 0, Math.PI * 2);
+          c.stroke();
+          c.setLineDash([]);
+        }
+        for (let i = 1; i < fim; i++) {
+          const a = proj(pts[i - 1]);
+          const b = proj(pts[i]);
+          if (a[2] <= 0 || b[2] <= 0) continue;
+          c.strokeStyle = `rgba(255,255,255,${0.15 + 0.7 * (i / pts.length)})`;
+          c.lineWidth = 2 + 3 * (i / pts.length);
+          c.beginPath();
+          c.moveTo(a[0], a[1]);
+          c.lineTo(b[0], b[1]);
+          c.stroke();
+        }
+      }
+    }
+    $('aviso').textContent = `${golpe === 'guarda' ? 'guarda' : NOMES[golpe].toLowerCase()} · ${vel === 1 ? 'velocidade real' : `${vel}×`}`;
+  }
+  requestAnimationFrame(quadro);
+} catch (e) {
+  const el = $('erro');
+  el.hidden = false;
+  el.textContent = `A vista 3D não abriu neste navegador (precisa de WebGL2 com textura de ponto flutuante). Detalhe: ${e.message}`;
+}
+</script>
