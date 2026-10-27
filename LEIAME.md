@@ -6,6 +6,21 @@ Um atleta humano **sem rosto**, feito em código, para ensinar movimento com exa
 
 O jeito pensado de usar é com um agente de código (Claude Code): você pede o vídeo e ele segue as regras e os portões que estão neste projeto. Sem agente, os comandos abaixo e os de `estudio/esportes/LEIAME.md` renderizam tudo à mão.
 
+## Duas formas de começar
+
+**1. Pelo plugin do Claude Code (não precisa clonar).** Num terminal:
+
+```bash
+claude plugin marketplace add paullabs/atleta-em-codigo
+claude plugin install atleta-em-codigo@atleta-em-codigo
+```
+
+Crie uma pasta nova para os seus vídeos, abra o Claude Code nela e peça `/atleta-em-codigo:novo-projeto`. O plugin copia o kit para a pasta (sem sobrescrever nada), instala as dependências e confere o computador. Os vídeos saem dessa pasta; o plugin só instala o projeto. Para receber uma versão nova do plugin: `claude plugin update atleta-em-codigo@atleta-em-codigo` (a pasta que você já criou continua como está).
+
+Enquanto o repositório for privado, você precisa de acesso a ele e de uma credencial do GitHub guardada no git: `gh auth login` e depois `gh auth setup-git`. Sem chave SSH no GitHub, defina `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`.
+
+**2. Clonando o repositório.** `git clone`, entre na pasta e siga "Primeiro uso" abaixo; o Claude Code carrega sozinho a skill `video-esportes` desta pasta.
+
 ## O que você precisa
 
 | Peça | Observação |

@@ -1,0 +1,12 @@
+{
+  "name": "atleta-em-codigo",
+  "description": "Estúdio de vídeos de luta em código",
+  "owner": { "name": "LABS" },
+  "plugins": [
+    {
+      "name": "atleta-em-codigo",
+      "source": "./",
+      "description": "Cria o projeto atleta-em-codigo na pasta atual (skill novo-projeto): o atleta 3D sem rosto, a aula de boxe, os Reels e o raio X."
+    }
+  ]
+}
