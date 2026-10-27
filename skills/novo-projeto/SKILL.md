@@ -10,7 +10,7 @@ Este plugin só instala o projeto. Os vídeos são feitos **dentro do projeto**,
 ## Passos
 
 1. **Veja onde está.** Rode `pwd` e `ls -A`.
-   - Se já existem `estudio/` e um `package.json` com `"name": "atleta-em-codigo"`, a pasta **já é um projeto**: não copie nada; siga para a skill `video-esportes`.
+   - Se já existem `estudio/` e um `package.json` com `"name": "atleta-em-codigo"`, a pasta **já é um projeto**: não copie nada. Se o plugin tem versão mais nova que a do projeto (compare os `package.json`), use a skill `atualizar-projeto`; se não, siga para a skill `video-esportes`.
    - Se a pasta tem outras coisas e não é claramente a que a pessoa quer, **pergunte antes** e sugira criar uma pasta nova (por exemplo `meus-videos-de-luta`) e abrir o Claude Code nela. O script não sobrescreve nada: se houver conflito, ele para sem copiar.
 2. **Confira o básico.** `node --version` (precisa de 18 ou mais) e `ffmpeg -version`. Se faltar um deles, diga o comando de instalação (no Mac: `brew install node ffmpeg`) e **espere o sim** da pessoa antes de instalar. O Chrome e a placa de vídeo são conferidos pelo `doctor`.
 3. **Copie o kit** para a pasta atual:

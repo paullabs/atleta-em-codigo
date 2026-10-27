@@ -4,37 +4,21 @@
 // Sem pasta, usa a pasta atual. Pelo plugin do Claude Code o caminho é o da instalação do plugin:
 //   node "${CLAUDE_PLUGIN_ROOT}/estudio/novo_projeto.mjs"
 // Se algum arquivo do destino já existir, nada é copiado e o script lista os conflitos (código 1).
-// Não entram na cópia: .git, node_modules, saida/, dados/ (a anatomia que a pessoa prepara), .DS_Store e, na raiz, o que é só do
-// plugin (.claude-plugin/ e skills/): a skill video-esportes vai junto em .claude/skills/, na versão do motor que está sendo copiado.
+// O que entra na cópia está em kit_arquivos.mjs. Para levar uma versão nova a um projeto que já existe: atualizar_projeto.mjs.
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { KIT, dentroDe, listarArquivos } from './kit_arquivos.mjs';
 
-const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const simular = args.includes('--simular');
 const destino = path.resolve(args.find((a) => !a.startsWith('--')) || process.cwd());
 
-const EM_QUALQUER_LUGAR = new Set(['.git', 'node_modules', 'saida', 'dados', '.DS_Store']);
-const SO_NA_RAIZ = new Set(['.claude-plugin', 'skills']);
-const ignorar = (partes) => partes.some((p) => EM_QUALQUER_LUGAR.has(p)) || SO_NA_RAIZ.has(partes[0]);
-
-if (destino === KIT || destino.startsWith(KIT + path.sep)) {
+if (dentroDe(destino, KIT)) {
   console.error(`O destino (${destino}) está dentro do próprio kit.\nAbra uma pasta nova para os seus vídeos (por exemplo ~/meus-videos-de-luta) e rode de lá.`);
   process.exit(2);
 }
 
-const arquivos = [];
-(function andar(dir, partes) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = [...partes, e.name];
-    if (ignorar(p) || e.isSymbolicLink()) continue;
-    if (e.isDirectory()) andar(path.join(dir, e.name), p);
-    else if (e.isFile()) arquivos.push(p);
-  }
-})(KIT, []);
-arquivos.sort((a, b) => a.join('/').localeCompare(b.join('/')));
-
+const arquivos = listarArquivos();
 const conflitos = arquivos.filter((p) => {
   try {
     fs.lstatSync(path.join(destino, ...p));
@@ -47,7 +31,7 @@ if (conflitos.length) {
   console.error(`Nada foi copiado: ${conflitos.length} arquivo(s) já existem em ${destino}:`);
   for (const p of conflitos.slice(0, 10)) console.error(`  ${p.join('/')}`);
   if (conflitos.length > 10) console.error(`  ... e mais ${conflitos.length - 10}`);
-  console.error('Use uma pasta vazia (ou sem estes nomes). O script nunca sobrescreve.');
+  console.error('Use uma pasta vazia (ou sem estes nomes). O script nunca sobrescreve. Se esta pasta já é um projeto e você quer a versão nova do kit, use atualizar_projeto.mjs.');
   process.exit(1);
 }
 
