@@ -3,6 +3,7 @@
 //   node esportes/render.mjs --saida esportes/saida/boxe_teste.mp4 [--de 0 --ate 10] [--am 6]
 //   node esportes/render.mjs --quadros 1.2,5.0,9.4 --png esportes/saida/q/q_{t}.png
 //   node esportes/render.mjs --folha esportes/saida/folha_quadros.jpg --cada 1.0 (um quadro por intervalo, em grade)
+//   --roteiro roteiros/minha_aula.json: a aula da pessoa em JSON, sem código (esportes/ROTEIRO.md); validada antes de abrir o Chrome
 //   --folga 0.6: depois de cada quadro espera 60% do tempo que ele levou (a placa de vídeo respira e o computador
 //   continua leve para quem está usando; o render fica mais lento)
 import http from 'node:http';
@@ -19,6 +20,14 @@ const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 const A = {};
 for (let i = 2; i < process.argv.length; i++) if (process.argv[i].startsWith('--')) A[process.argv[i].slice(2)] = process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[++i] : true;
 
+// --roteiro aula.json: aula própria em JSON; validada aqui e entregue à página (video.html) em window.__ROTEIRO
+let roteiro = null;
+if (A.roteiro !== undefined) {
+  const { lerRoteiroOuSair } = await import('./roteiro.mjs');
+  roteiro = lerRoteiroOuSair(A.roteiro);
+  for (const a of roteiro.avisos) console.log('[aviso]', a);
+  console.log(`roteiro ${A.roteiro}: ${roteiro.aula.blocos.length} blocos, ${roteiro.aula.duracao.toFixed(1)} s`);
+}
 const srv = http.createServer((req, res) => {
   const p = path.normalize(path.join(RAIZ, decodeURIComponent(new URL(req.url, 'http://l').pathname)));
   if (!p.startsWith(RAIZ)) {
@@ -37,6 +46,7 @@ const srv = http.createServer((req, res) => {
 await new Promise((r) => srv.listen(0, '127.0.0.1', r));
 const nav = await chromium.launch(opcoesNavegador());
 const pg = await nav.newPage({ viewport: { width: 600, height: 1000 } });
+if (roteiro) await pg.addInitScript((j) => { window.__ROTEIRO = j; }, roteiro.json);
 pg.on('pageerror', (e) => console.log('[erro]', e.message));
 pg.on('console', (m) => {
   if (m.type() === 'error' && !m.text().includes('404')) console.log('[pagina]', m.text());

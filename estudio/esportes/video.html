@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { construirAnatomia } from './corpo/anatomia.js';
 import { criarRenderizador, CANTOS } from './corpo/renderizador.js';
 import { montarAula } from './boxe/aula.js';
+import { roteiroDeJson } from './boxe/roteiro_json.js';
 import { GOLPES, ALVOS, faceDaLuva } from './boxe/golpes.js';
 import { posar } from './corpo/pose.js';
 import { IDX } from './corpo/esqueleto.js';
@@ -33,7 +34,7 @@ try {
   const gl = document.createElement('canvas');
   gl.id = 'c';
   const R = criarRenderizador(gl, anat, { lutadores: 2 });
-  const aula = montarAula();
+  const aula = montarAula(window.__ROTEIRO ? roteiroDeJson(window.__ROTEIRO).roteiro : undefined); // o --roteiro do render.mjs entrega o JSON da aula própria
   const out = document.getElementById('saida');
   out.width = W;
   out.height = H;

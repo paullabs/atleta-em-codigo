@@ -1,7 +1,7 @@
 // Auditoria de colisões da aula de boxe (ver auditoria_base.js). Uso (da pasta estudio/):
-//   node esportes/auditar.mjs [--passo 0.0333] [--pontos 700] [--saida esportes/saida/colisoes.json] [--roteiro esportes/minha_aula.js]
-// --roteiro: audita a aula da pessoa em vez da aula de teste. O arquivo exporta o roteiro (um array de blocos, como AULA_TESTE
-// em boxe/aula.js) como `export default` ou como o primeiro array que ele exporta.
+//   node esportes/auditar.mjs [--passo 0.0333] [--pontos 700] [--saida esportes/saida/colisoes.json] [--roteiro roteiros/minha_aula.json]
+// --roteiro: audita a aula da pessoa em vez da aula de teste: um arquivo .json (esportes/ROTEIRO.md, sem código) ou um módulo .js que
+// exporta o roteiro (um array de blocos, como AULA_TESTE em boxe/aula.js) como `export default` ou como o primeiro array que ele exporta.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -10,14 +10,21 @@ import { montarAula } from './boxe/aula.js';
 
 let roteiro;
 if (A.roteiro) {
-  const mod = await import(pathToFileURL(path.resolve(A.roteiro)).href).catch((e) => {
-    console.error(`--roteiro ${A.roteiro}: não consegui abrir como módulo JavaScript (${String(e.message).split('\n')[0]})`);
-    process.exit(1);
-  });
-  roteiro = mod.default ?? Object.values(mod).find(Array.isArray);
-  if (!Array.isArray(roteiro)) {
-    console.error(`--roteiro ${A.roteiro}: o arquivo precisa exportar o roteiro (um array de blocos, como AULA_TESTE em boxe/aula.js)`);
-    process.exit(1);
+  if (/\.json$/i.test(String(A.roteiro))) {
+    const { lerRoteiroOuSair } = await import('./roteiro.mjs');
+    const r = lerRoteiroOuSair(A.roteiro);
+    for (const a of r.avisos) console.log('[aviso]', a);
+    roteiro = r.roteiro;
+  } else {
+    const mod = await import(pathToFileURL(path.resolve(A.roteiro)).href).catch((e) => {
+      console.error(`--roteiro ${A.roteiro}: não consegui abrir como módulo JavaScript (${String(e.message).split('\n')[0]})`);
+      process.exit(1);
+    });
+    roteiro = mod.default ?? Object.values(mod).find(Array.isArray);
+    if (!Array.isArray(roteiro)) {
+      console.error(`--roteiro ${A.roteiro}: o arquivo precisa exportar o roteiro (um array de blocos, como AULA_TESTE em boxe/aula.js)`);
+      process.exit(1);
+    }
   }
 }
 const aula = montarAula(roteiro);

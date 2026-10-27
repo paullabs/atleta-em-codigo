@@ -1,6 +1,6 @@
 {
   "name": "atleta-em-codigo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Estúdio de vídeos de luta em código: cria na sua pasta o projeto com o atleta 3D sem rosto (boxe, aula, Reels, raio X) e a skill que guia o vídeo.",
   "author": { "name": "LABS" },
   "homepage": "https://github.com/paullabs/atleta-em-codigo",

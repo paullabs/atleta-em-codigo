@@ -28,7 +28,7 @@ Linha de esporte do estúdio: um corpo humano atlético, **sem rosto**, feito em
 |---|---|---|
 | Corpo | `corpo/esqueleto.js`, `anatomia.js`, `sdf.js`, `renderizador.js`, `pose.js` | 24 ossos, formas e músculos, o GLSL gerado, o raymarching com luz de estúdio e as duas qualidades (`alta` para vídeo, `leve` para a página ao vivo), a pose por cinemática inversa |
 | Golpes | `boxe/golpes.js`, `boxe/impacto.js`, `boxe/aula.js`, `boxe/TECNICA.md` | a guarda e os 4 golpes calibrados; o alvo que leva o soco, a reação e a conta da alavanca; a aula em blocos; a técnica com números e fontes |
-| Aula | `video.html`, `render.mjs` | o vídeo-aula de 53 s (os dois lutadores frente a frente, cada golpe em velocidade real e depois em câmera lenta, a combinação final lado a lado) |
+| Aula | `video.html`, `render.mjs`, `roteiro.mjs`, `ROTEIRO.md` | o vídeo-aula de 53 s (os dois lutadores frente a frente, cada golpe em velocidade real e depois em câmera lenta, a combinação final lado a lado) |
 | Reels | `reels_queixo.html`, `reels_queixo_v3.html`, `REELS_QUEIXO.md` | o modelo "por que o soco no queixo apaga": planos, câmeras, rampa de velocidade, o roteiro e o que é medido ou ilustrado |
 | Folhas e testes | `folha.html`, `laboratorio.html`, `impacto_lab.html`, `foto.mjs`, `tempo.html` | as folhas do personagem, fotos de qualquer pose e ângulo, o tempo de um quadro |
 | Auditoria | `auditar.mjs`, `auditar_reels.mjs`, `auditoria_base.js` | colisão quadro a quadro, com profundidade |
@@ -45,10 +45,23 @@ Siga em ordem; cada portão existe porque um erro das rodadas de retorno teria s
 4. **Portão de teste** (antes de qualquer render inteiro):
    - Fotos de pose e ângulo: `node esportes/foto.mjs --url "/esportes/laboratorio.html?vistas=-90,-30,30&pose=gancho&t=impacto" --saida esportes/saida/lab/teste.png` (`pose` = neutra, guarda, jab, direto, gancho, upper).
    - Quadros soltos ou folha: `node esportes/render.mjs --quadros 9.9,19.3 --png esportes/saida/q/q_{t}.png`, ou `--folha esportes/saida/folha_aula.jpg --cada 1.5 --colunas 11 --am 2`.
-   - Auditoria: `node esportes/auditar.mjs` (ou `auditar_reels.mjs`) até dar `atravessa: 0 pares`; para uma aula da pessoa, `node esportes/auditar.mjs --roteiro esportes/minha_aula.js` (receita em `LEIAME.md`, "Aula própria"). Mudou o tempo de um golpe, audite de novo.
+   - Auditoria: `node esportes/auditar.mjs` (ou `auditar_reels.mjs`) até dar `atravessa: 0 pares`; para uma aula da pessoa, `node esportes/auditar.mjs --roteiro roteiros/<nome>.json` (veja "Montar uma aula na conversa" abaixo). Mudou o tempo de um golpe, audite de novo.
 5. **Render.** `node esportes/render.mjs --saida esportes/saida/<nome>.mp4 --am 4 --folga 0.6` (a aula, 53 s). Para um Reels: `--pagina reels_queixo_v3.html`. O `--am` é a qualidade do desfoque de movimento; `--folga 0.6` deixa o computador leve (e o render mais lento).
 6. **Voz e som.** Ensaio com a voz provisória do sistema. A voz final (ElevenLabs) só com o custo mostrado e o sim de quem aprova. Som: uma pancada grave com estalo em cada impacto, um tom no aparecer da fonte e uma base suave que abaixa na pancada; poucos efeitos, só tons. Volume final −15 LUFS.
 7. **Conferir e entregar.** `npm run conferir -- video <arquivo.mp4>` (formato, volume, silêncio) e `npm run conferir -- esportes-aula` ou `esportes-reels`. Se o vídeo mostra a anatomia, ponha o crédito do BodyParts3D na descrição (abaixo).
+
+## Montar uma aula na conversa (sem código)
+
+Quando a pessoa quer **uma aula** (golpes, câmera lenta, dicas), você escreve o roteiro em JSON por ela: ela não precisa saber código. Formato completo, limites e exemplos: `estudio/esportes/ROTEIRO.md`. Os comandos abaixo rodam da pasta do projeto.
+
+1. **Pergunte o mínimo:** quais golpes (jab, direto, gancho, uppercut), quantas vezes em velocidade real, se quer câmera lenta com as dicas, se quer abrir com os dois lutadores e fechar com um combo, e a duração que imagina (uma aula de 30 a 60 s costuma bastar). Não invente golpes que não existem; se pedirem outro (cruzado, esquiva, chute), diga que ainda não existe e ofereça o mais próximo.
+2. **Proponha a lista de blocos** em uma tabela curta (bloco, golpe, quanto dura) e espere o ok.
+3. **Escreva `roteiros/<nome>.json`** (crie a pasta). Comece de `node estudio/esportes/roteiro.mjs --modelo` ou de um exemplo em `estudio/esportes/roteiros/`; deixe câmeras, títulos e dicas nos padrões e escreva só o que a pessoa pediu. Textos em português falado, curtos (título até 16 letras, dica até 60).
+4. **Valide e mostre o resumo:** `node estudio/esportes/roteiro.mjs roteiros/<nome>.json` (blocos e duração). Em erro, a mensagem diz o bloco e o campo: corrija o JSON e rode de novo; leia os avisos para a pessoa.
+5. **Audite:** `node estudio/esportes/auditar.mjs --roteiro roteiros/<nome>.json` até dar `atravessa: 0 pares`.
+6. **Rascunho barato:** `node estudio/esportes/render.mjs --roteiro roteiros/<nome>.json --leve --saida esportes/saida/<nome>_rascunho.mp4` (o `--saida` é relativo a `estudio/`). Diga onde ficou e quanto dura, e **espere o sim da pessoa** para o render final (sem `--leve`, com `--am 4 --folga 0.6`).
+
+Regras: nunca escreva JavaScript para a pessoa nesta rota; não renderize o vídeo final nem gaste crédito de voz sem o sim dela; se ela mudar de ideia, edite o JSON (não recomece).
 
 ## Exemplo
 

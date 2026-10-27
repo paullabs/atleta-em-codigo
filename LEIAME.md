@@ -56,7 +56,8 @@ npm run conferir -- esportes-aula
 node estudio/esportes/render.mjs --saida esportes/saida/minha_aula.mp4 --am 4 --folga 0.6
 ```
 
-4. **Confira o arquivo final:** `npm run conferir -- video estudio/esportes/saida/minha_aula.mp4` (formato, volume, silêncio).
+4. **Uma aula só sua, sem escrever código:** `node estudio/esportes/roteiro.mjs --modelo > roteiros/minha_aula.json`, edite os blocos (golpes, câmera lenta, dicas) e siga `estudio/esportes/ROTEIRO.md`; com o Claude Code é só pedir a aula e a skill escreve o roteiro com você.
+5. **Confira o arquivo final:** `npm run conferir -- video estudio/esportes/saida/minha_aula.mp4` (formato, volume, silêncio).
 
 Um vídeo de 1 minuto custa em geral de 10 a 25 minutos de render num Apple M5 Pro; o `npm run doctor` mostra a estimativa para o seu computador.
 

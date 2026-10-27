@@ -1,0 +1,15 @@
+{
+  "titulo": "O gancho em 3 passos",
+  "nota": "Uma aula curta só de gancho: guarda, duas vezes em velocidade real e uma em câmera lenta com as dicas padrão.",
+  "blocos": [
+    {
+      "tipo": "guarda",
+      "dur": 3,
+      "titulo": "O GANCHO",
+      "tag": "em 3 passos",
+      "camera": { "de": { "vista": "frente34", "orbita": -10 }, "ate": { "vista": "frente34", "orbita": 14 } }
+    },
+    { "tipo": "real", "golpe": "gancho", "repete": 2 },
+    { "tipo": "lento", "golpe": "gancho" }
+  ]
+}

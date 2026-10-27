@@ -29,7 +29,8 @@ Linha nova do estúdio (20/10/2026): um corpo humano atlético, sem rosto, feito
 | `laboratorio.html` | fotos de teste de qualquer pose e ângulo |
 | `video.html`, `render.mjs` | o vídeo-aula quadro a quadro (1080×1920, 30 qps) |
 | `folha.html` | as 4 folhas do personagem |
-| `auditar.mjs` | auditoria de colisões quadro a quadro, com profundidade |
+| `auditar.mjs` | auditoria de colisões quadro a quadro, com profundidade (`--roteiro` audita a aula da pessoa) |
+| `roteiro.mjs`, `boxe/roteiro_json.js`, `ROTEIRO.md` | a aula própria em JSON: validação e resumo, o conversor para o roteiro da aula e o formato com exemplos |
 | `foto.mjs` | tira o PNG de qualquer página (Chrome sem janela, GPU) |
 | `ao_vivo.html` | página ao vivo (abre no navegador, veja "Página ao vivo"): o vermelho, o azul ou os dois lado a lado; golpes em qualquer velocidade e ângulo, rastro da luva e músculos de cada golpe |
 
@@ -71,14 +72,21 @@ Colisões (rodar antes de todo render longo; tem de dar `atravessa: 0 pares`):
 node esportes/auditar.mjs --passo 0.0333 --pontos 700 --saida esportes/saida/colisoes.json
 ```
 
-### Aula própria
+### Aula própria (sem escrever código)
 
-A aula é uma lista de blocos (`guarda`, `real`, `lento`, `combo`), como `AULA_TESTE` em `boxe/aula.js`. Para fazer a sua: escreva `esportes/minha_aula.js` exportando a lista (`export const MEU_ROTEIRO = [...]`, usando `CAMERAS`, `orbitar` e `PONTOS` de `boxe/aula.js`), copie `video.html` para `minha_aula.html` e troque `montarAula()` por `montarAula(MEU_ROTEIRO)` (mais o `import` do seu arquivo). Depois:
+A aula é uma lista de blocos (`abertura`, `guarda`, `real`, `lento`, `combo`) escrita em JSON, e o que você não disser vem da aula de teste. Formato, campos e exemplos: [`ROTEIRO.md`](ROTEIRO.md). Da pasta do projeto:
 
 ```bash
-node esportes/auditar.mjs --roteiro esportes/minha_aula.js          # tem de dar atravessa: 0 pares
-node esportes/render.mjs --pagina minha_aula.html --leve --saida esportes/saida/minha_aula.mp4
+mkdir -p roteiros
+node estudio/esportes/roteiro.mjs --modelo > roteiros/minha_aula.json      # um roteiro de partida
+node estudio/esportes/roteiro.mjs roteiros/minha_aula.json                 # valida e mostra os blocos e a duração
+node estudio/esportes/auditar.mjs --roteiro roteiros/minha_aula.json       # tem de dar atravessa: 0 pares
+node estudio/esportes/render.mjs --roteiro roteiros/minha_aula.json --leve --saida esportes/saida/minha_aula_rascunho.mp4
 ```
+
+Com o Claude Code, é só pedir a aula: a skill `video-esportes` pergunta o que você quer ensinar, escreve o JSON, valida, audita e renderiza um rascunho. Exemplos prontos em `roteiros/`: `exemplo_gancho.json` e `aula_completa.json` (a aula de 53 s).
+
+Quem prefere código ainda pode escrever o roteiro em JavaScript (uma lista como `AULA_TESTE`, em `boxe/aula.js`): `auditar.mjs --roteiro arquivo.js` aceita o módulo, e o render usa uma cópia de `video.html` com `montarAula(MEU_ROTEIRO)`.
 
 ## Raio X: anatomia interna (marco 1 do plano, 20/10/2026)
 

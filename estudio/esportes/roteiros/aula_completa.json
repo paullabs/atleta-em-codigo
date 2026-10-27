@@ -1,0 +1,17 @@
+{
+  "titulo": "A aula de teste inteira, em JSON",
+  "nota": "Reproduz exatamente a aula de 53 s (boxe/aula.js, AULA_TESTE): tudo o que não está escrito aqui vem dos padrões.",
+  "blocos": [
+    { "tipo": "abertura" },
+    { "tipo": "guarda" },
+    { "tipo": "real", "golpe": "jab", "repete": 2 },
+    { "tipo": "lento", "golpe": "jab" },
+    { "tipo": "real", "golpe": "direto", "repete": 2 },
+    { "tipo": "lento", "golpe": "direto" },
+    { "tipo": "real", "golpe": "gancho", "repete": 2 },
+    { "tipo": "lento", "golpe": "gancho" },
+    { "tipo": "real", "golpe": "upper", "repete": 2 },
+    { "tipo": "lento", "golpe": "upper" },
+    { "tipo": "combo", "golpes": ["jab", "direto", "gancho", "direto"], "antes": 0.5, "depois": 1.1 }
+  ]
+}
