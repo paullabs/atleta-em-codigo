@@ -17,7 +17,7 @@ claude plugin install atleta-em-codigo@atleta-em-codigo
 
 Crie uma pasta nova para os seus vídeos, abra o Claude Code nela e peça `/atleta-em-codigo:novo-projeto`. O plugin copia o kit para a pasta (sem sobrescrever nada), instala as dependências e confere o computador. Os vídeos saem dessa pasta; o plugin só instala o projeto. Para receber uma versão nova: `claude plugin update atleta-em-codigo@atleta-em-codigo`, reinicie o Claude Code e, dentro da pasta de um projeto que você já criou, peça `/atleta-em-codigo:atualizar-projeto`. Ele leva o motor novo para a pasta sem tocar no seu perfil, nos seus roteiros e no `.env`, e guarda cópia do que substitui em `.atualizacao/`. O que mudou em cada versão está no `CHANGELOG.md`.
 
-Enquanto o repositório for privado, você precisa de acesso a ele e de uma credencial do GitHub guardada no git: `gh auth login` e depois `gh auth setup-git`. Sem chave SSH no GitHub, defina `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`.
+O repositório é público: não precisa de conta nem de credencial do GitHub para instalar o plugin. Só se você usar um fork ou espelho **privado** é que precisa de uma credencial guardada no git (`gh auth login` e depois `gh auth setup-git`) e, sem chave SSH no GitHub, de `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`.
 
 **2. Clonando o repositório.** `git clone`, entre na pasta e siga "Primeiro uso" abaixo; o Claude Code carrega sozinho a skill `video-esportes` desta pasta.
 

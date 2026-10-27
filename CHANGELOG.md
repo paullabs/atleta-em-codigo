@@ -1,5 +1,9 @@
 # Novidades por versão
 
+## 0.4.1
+
+- `LEIAME.md`: tira a frase que dizia que o repositório era privado e pedia credencial do GitHub. A instalação do plugin não precisa de conta; a credencial só vale para fork ou espelho privado. Nenhuma mudança no motor.
+
 ## 0.4.0
 
 - **`/atleta-em-codigo:atualizar-projeto`**: leva o motor novo para um projeto que você já criou, sem tocar no seu perfil, nos seus roteiros e no `.env`, e guarda cópia de tudo o que substitui em `.atualizacao/`.
