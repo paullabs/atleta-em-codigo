@@ -14,6 +14,10 @@ __pycache__/
 
 # Saídas: se refazem por script
 estudio/**/saida/
+estudio/espaco/projetos/*/voz/
+estudio/espaco/projetos/*/voz_final/
+estudio/espaco/projetos/*/entrega/
+estudio/espaco/projetos/*/referencias/
 *.mp4
 *.mov
 *.webm

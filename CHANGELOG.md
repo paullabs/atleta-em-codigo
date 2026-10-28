@@ -1,5 +1,9 @@
 # Novidades por versão
 
+## 0.4.2
+
+- **Marca d'água mais discreta**: 1,5% de opacidade (era 4%), só o nome do canal (sem a barra dourada), metade do tamanho e mais perto das pontas dos cantos. Continua mudando de canto e continua em todos os motores. `npm run conferir -- marca` passa a aceitar de 1% a 3%. Quem já criou um projeto leva a mudança com `/atleta-em-codigo:atualizar-projeto`.
+
 ## 0.4.1
 
 - `LEIAME.md`: tira a frase que dizia que o repositório era privado e pedia credencial do GitHub. A instalação do plugin não precisa de conta; a credencial só vale para fork ou espelho privado. Nenhuma mudança no motor.

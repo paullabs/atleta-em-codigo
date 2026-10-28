@@ -138,15 +138,17 @@ const CONFERENCIAS = {
 
   marca: {
     uso: 'marca',
-    descricao: 'a marca d\'água do canal continua em todos os motores que o kit traz (o esportes é obrigatório): arquivos íntegros (selo), motor do espaço ligado ao pos.js, os renderizadores dos outros motores chamando instalarMarca, com a opacidade e os quatro cantos combinados',
+    descricao: 'a marca d\'água do canal continua em todos os motores que o kit traz (o motor principal do kit é obrigatório): arquivos íntegros (selo), motor do espaço ligado ao pos.js, os renderizadores dos outros motores chamando instalarMarca, com a opacidade e os quatro cantos combinados',
     rodar() {
       const est = path.join(RAIZ_PROJETO, 'estudio');
       const arqSelo = path.join(est, 'espaco', 'marca.selo.json');
       const SELADOS = ['espaco/marca_agenda.js', 'espaco/marca.js', 'marca_pagina.mjs'];
-      // a marca vale em todos os motores QUE O KIT TRAZ; o esportes é obrigatório. Motor que existe é conferido por inteiro: a ausência
-      // do arquivo só dispensa um motor que o kit não leva (o kit da luta leva só o esportes), nunca o esportes.
+      // a marca vale em todos os motores QUE O KIT TRAZ; o motor principal do kit é obrigatório (o esportes no atleta-em-codigo e no
+      // projeto inteiro, o pós do espaço no espaco-em-codigo). Motor que existe é conferido por inteiro: a ausência do arquivo só
+      // dispensa um motor que o kit não leva, nunca o principal.
       const MOTORES_MARCA = { 'motor3d/render.mjs': '3D base', 'motor3d/render_episodio.mjs': 'dramático', 'esportes/render.mjs': 'esportes', 'treino/comum/render.mjs': 'leve', 'espaco/pos.js': 'espaço' };
-      const OBRIGATORIOS = ['esportes/render.mjs'];
+      const nomeKit = (() => { try { return JSON.parse(fs.readFileSync(path.join(RAIZ_PROJETO, 'package.json'), 'utf8')).name; } catch { return ''; } })();
+      const OBRIGATORIOS = nomeKit === 'espaco-em-codigo' ? ['espaco/pos.js'] : ['esportes/render.mjs'];
       const RENDERIZADORES = Object.keys(MOTORES_MARCA).filter((r) => OBRIGATORIOS.includes(r) || fs.existsSync(path.join(est, r)));
       const foraDoKit = Object.keys(MOTORES_MARCA).filter((r) => !RENDERIZADORES.includes(r));
       for (const a of [arqSelo, ...SELADOS, ...RENDERIZADORES].map((r) => (path.isAbsolute(r) ? r : path.join(est, r)))) if (!fs.existsSync(a)) return falha(`faltando: ${path.relative(RAIZ_PROJETO, a)}`);
@@ -174,9 +176,9 @@ const CONFERENCIAS = {
       // 4) opacidade e cantos combinados
       const agenda = fs.readFileSync(path.join(est, 'espaco', 'marca_agenda.js'), 'utf8');
       const m = agenda.match(/opacidade:\s*([0-9.]+)/);
-      if (!m || +m[1] < 0.03 || +m[1] > 0.06) erros.push(`opacidade fora do combinado (3% a 6%): ${m ? m[1] : 'não achei'}`);
+      if (!m || +m[1] < 0.01 || +m[1] > 0.03) erros.push(`opacidade fora do combinado (1% a 3%): ${m ? m[1] : 'não achei'}`);
       for (const c of ["'SE'", "'SD'", "'IE'", "'ID'"]) if (!agenda.includes(c)) erros.push(`canto ${c} sumiu da agenda`);
-      det.push(`opacidade ${m ? (+m[1] * 100).toFixed(0) : '?'}%, ${SELADOS.length} arquivos selados, ${RENDERIZADORES.length} renderizador(es) ligado(s): ${RENDERIZADORES.map((r) => MOTORES_MARCA[r]).join(', ')}`);
+      det.push(`opacidade ${m ? +(+m[1] * 100).toFixed(1) : '?'}%, ${SELADOS.length} arquivos selados, ${RENDERIZADORES.length} renderizador(es) ligado(s): ${RENDERIZADORES.map((r) => MOTORES_MARCA[r]).join(', ')}`);
       if (foraDoKit.length) det.push(`fora deste kit (não conferidos): ${foraDoKit.map((r) => MOTORES_MARCA[r]).join(', ')}`);
       det.push('o quadro de cada motor é provado por: node estudio/marca_teste.mjs');
       return erros.length ? falha('a marca d\'água do canal foi alterada ou desligada', [...erros, 'O kit exige a marca (veja o LEIAME). Restaure os arquivos originais.']) : bom(foraDoKit.length ? 'marca d\'água do canal íntegra e ligada a todos os motores deste kit' : 'marca d\'água do canal íntegra e ligada a todos os motores', det);

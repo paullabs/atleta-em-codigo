@@ -91,4 +91,4 @@ Só depois disso funcionam os Reels com raio X. **Todo vídeo que mostrar a anat
 
 ## Licença
 
-O kit tem uma licença própria (arquivo `LICENSE`): uso livre, inclusive comercial, **com uma condição: todo vídeo publicado leva a marca d'água do canal LABS** (um selo fraco, a 4%, que muda de canto). Também não é permitido vender o kit como produto, curso ou template. `npm run conferir -- marca` confere que a marca continua nos motores do kit; quem a tirar perde a licença. Leia o `LICENSE` inteiro antes de usar ou repassar.
+O kit tem uma licença própria (arquivo `LICENSE`): uso livre, inclusive comercial, **com uma condição: todo vídeo publicado leva a marca d'água do canal LABS** (um selo fraco, a 1,5%, só as letras LABS, que muda de canto). Também não é permitido vender o kit como produto, curso ou template. `npm run conferir -- marca` confere que a marca continua nos motores do kit; quem a tirar perde a licença. Leia o `LICENSE` inteiro antes de usar ou repassar.

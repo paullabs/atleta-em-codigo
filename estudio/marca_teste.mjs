@@ -29,6 +29,9 @@ const MOTORES = {
   leve: { arquivo: 'treino/3d-toon/pagina.html', raiz: '.', url: '/treino/3d-toon/pagina.html?tl=/treino/3d-toon/exemplo/timeline.json&escala=1', tipo: 'motor', swiftshader: true, viewport: [540, 960] },
   episodio: { arquivo: 'motor3d/render_episodio.html', raiz: 'motor3d', url: '/render_episodio.html?ep=ep01&w=540&h=960&fps=30&semente=1&grao=0.018&qualidade=rapida', tipo: 'episodio', fps: 30, viewport: [400, 720], extras: ['--autoplay-policy=no-user-gesture-required'] },
 };
+// no espaco-em-codigo o motor principal é o do espaço (conferido por `npm run conferir -- marca`), e o esportes não vem no kit
+const nomeKit = (() => { try { return JSON.parse(fs.readFileSync(path.join(AQUI, '..', 'package.json'), 'utf8')).name; } catch { return ''; } })();
+if (nomeKit === 'espaco-em-codigo') MOTORES.esportes.obrigatorio = false;
 const t = Number(A.t ?? 2);
 const noKit = (n) => !!MOTORES[n] && fs.existsSync(path.join(AQUI, MOTORES[n].arquivo));
 const todos = !A.motor || A.motor === true || A.motor === 'todos';
@@ -108,8 +111,9 @@ async function testar(nome) {
   }
 }
 
+if (!escolhidos.length) { console.log('Este kit não traz motor de página para este teste: a marca do espaço fica no pós (pos.js) e é conferida por npm run conferir -- marca.'); process.exit(0); }
 let falhou = false;
-console.log(`marca "${MARCA.nome}" a ${(MARCA.opacidade * 100).toFixed(0)}% — quadro em t=${t} s`);
+console.log(`marca "${MARCA.nome}" a ${+(MARCA.opacidade * 100).toFixed(1)}% — quadro em t=${t} s`);
 for (const nome of escolhidos) {
   const r = await testar(nome).catch((e) => ({ nome, ok: false, erro: e.message }));
   if (!r.ok) falhou = true;
