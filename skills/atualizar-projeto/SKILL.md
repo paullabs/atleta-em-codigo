@@ -7,9 +7,11 @@ description: Leva a versão nova do atleta-em-codigo (a do plugin) para um proje
 
 O plugin instala uma **cópia** do motor na pasta da pessoa. Quando o plugin atualiza, projetos que já existem continuam com o motor antigo até alguém rodar isto. Aqui você leva o motor novo sem estragar o que é dela.
 
+> **Raiz do plugin (Claude Code e Codex).** Os comandos abaixo precisam da pasta do plugin, que o Claude Code chama de CLAUDE_PLUGIN_ROOT. O Claude Code troca a variável pelo caminho antes de você ler este texto. O Codex e outros agentes não trocam: lá a variável sai vazia, e o comando falha com "Cannot find module" ou "No such file". Se os comandos abaixo ainda mostram a variável escrita com cifrão e chaves, em vez de um caminho de pasta, **pare antes de rodar qualquer um**: a raiz do plugin é a pasta duas acima da pasta desta skill, a que tem o arquivo `.claude-plugin/plugin.json`. Confirme que o arquivo existe lá e use esse caminho absoluto no lugar da variável em todos os comandos. Nunca rode um comando com a raiz vazia.
+
 ## Passos
 
-1. **Confirme que está num projeto.** `pwd` e `ls -A`: tem de haver `estudio/` e um `package.json` com `"name": "atleta-em-codigo"`. Se não houver, esta não é a skill (use `novo-projeto`, numa pasta vazia).
+1. **Confirme que está num projeto.** Liste a pasta atual (com as suas ferramentas de arquivo, ou `ls -A` no Mac e `dir -Force` no PowerShell): tem de haver `estudio/` e um `package.json` com `"name": "atleta-em-codigo"`. Se não houver, esta não é a skill (use `novo-projeto`, numa pasta vazia).
 2. **Compare as versões.**
    ```bash
    node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version"
@@ -26,7 +28,7 @@ O plugin instala uma **cópia** do motor na pasta da pessoa. Quando o plugin atu
    node "${CLAUDE_PLUGIN_ROOT}/estudio/atualizar_projeto.mjs"
    ```
    O script guarda a cópia de tudo o que substitui em `.atualizacao/<de>-para-<para>/arquivos-antigos/`. Se a pessoa tinha mexido num arquivo do motor, é lá que ele está.
-5. **Confira:** `npm run instalar` só se o script disser que as dependências mudaram; depois `npm run doctor` e `npm run conferir -- marca`. Se a pessoa já tem roteiros em `roteiros/`, valide um: `node estudio/esportes/roteiro.mjs roteiros/<nome>.json`.
+5. **Confira:** rode `node estudio/preparar.mjs --simular`. Se o script de atualização disse que as dependências mudaram, ou se a versão nova passou a precisar de algo que o computador não tem (ele mostra o que falta e o tamanho), peça o sim da pessoa e rode `node estudio/preparar.mjs --sim` (baixa só o que falta, para dentro do projeto; o que ela já tem é usado). Pode levar vários minutos: rode em segundo plano ou com o tempo limite máximo e espere; se for interrompido, rode de novo. Depois `npm run doctor` e `npm run conferir -- marca`. Se a pessoa já tem roteiros em `roteiros/`, valide um: `node estudio/esportes/roteiro.mjs roteiros/<nome>.json`.
 6. **Termine dizendo:** o que ficou novo (em uma ou duas frases, do CHANGELOG), que a cópia de segurança está em `.atualizacao/`, e que o Claude Code deve ser fechado e aberto de novo nesta pasta para ler a skill `video-esportes` atualizada.
 
 ## Regras

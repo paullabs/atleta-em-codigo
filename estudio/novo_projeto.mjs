@@ -6,12 +6,13 @@
 // Se algum arquivo do destino já existir, nada é copiado e o script lista os conflitos (código 1).
 // O que entra na cópia está em kit_arquivos.mjs. Para levar uma versão nova a um projeto que já existe: atualizar_projeto.mjs.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { KIT, dentroDe, listarArquivos } from './kit_arquivos.mjs';
 
 const args = process.argv.slice(2);
 const simular = args.includes('--simular');
-const destino = path.resolve(args.find((a) => !a.startsWith('--')) || process.cwd());
+const destino = path.resolve((args.find((a) => !a.startsWith('--')) || process.cwd()).replace(/^~(?=$|[\\/])/, os.homedir())); // ~ vale no Mac e no Windows
 
 if (dentroDe(destino, KIT)) {
   console.error(`O destino (${destino}) está dentro do próprio kit.\nAbra uma pasta nova para os seus vídeos (por exemplo ~/meus-videos-de-luta) e rode de lá.`);
@@ -43,4 +44,4 @@ if (!simular) {
   }
 }
 console.log(`${simular ? '[simulação] copiaria' : 'Copiei'} ${arquivos.length} arquivos para ${destino}`);
-console.log('Próximos passos, nessa pasta:\n  npm run instalar      (uma vez: baixa o three.js e o Playwright)\n  npm run doctor        (confere o computador)\n  npm run exemplo:esportes   (2 s de vídeo de teste)\nDepois edite perfil/perfil_da_casa.md e abra o Claude Code nesta pasta para pedir o seu vídeo.');
+console.log('Próximos passos, nessa pasta:\n  npm run preparar      (uma vez: confere o computador e baixa só o que falta, no Mac ou no Windows)\n  npm run exemplo:esportes   (2 s de vídeo de teste)\nDepois edite perfil/perfil_da_casa.md e abra o Claude Code nesta pasta para pedir o seu vídeo.');

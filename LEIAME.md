@@ -15,7 +15,7 @@ claude plugin marketplace add paullabs/atleta-em-codigo
 claude plugin install atleta-em-codigo@atleta-em-codigo
 ```
 
-Crie uma pasta nova para os seus vídeos, abra o Claude Code nela e peça `/atleta-em-codigo:novo-projeto`. O plugin copia o kit para a pasta (sem sobrescrever nada), instala as dependências e confere o computador. Os vídeos saem dessa pasta; o plugin só instala o projeto. Para receber uma versão nova: `claude plugin update atleta-em-codigo@atleta-em-codigo`, reinicie o Claude Code e, dentro da pasta de um projeto que você já criou, peça `/atleta-em-codigo:atualizar-projeto`. Ele leva o motor novo para a pasta sem tocar no seu perfil, nos seus roteiros e no `.env`, e guarda cópia do que substitui em `.atualizacao/`. O que mudou em cada versão está no `CHANGELOG.md`.
+Crie uma pasta nova para os seus vídeos, abra o Claude Code nela e peça `/atleta-em-codigo:novo-projeto`. O plugin copia o kit para a pasta (sem sobrescrever nada), confere o computador e baixa só o que faltar. Os vídeos saem dessa pasta; o plugin só instala o projeto. Para receber uma versão nova: `claude plugin update atleta-em-codigo@atleta-em-codigo`, reinicie o Claude Code e, dentro da pasta de um projeto que você já criou, peça `/atleta-em-codigo:atualizar-projeto`. Ele leva o motor novo para a pasta sem tocar no seu perfil, nos seus roteiros e no `.env`, e guarda cópia do que substitui em `.atualizacao/`. O que mudou em cada versão está no `CHANGELOG.md`.
 
 O repositório é público: não precisa de conta nem de credencial do GitHub para instalar o plugin. Só se você usar um fork ou espelho **privado** é que precisa de uma credencial guardada no git (`gh auth login` e depois `gh auth setup-git`) e, sem chave SSH no GitHub, de `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`.
 
@@ -25,18 +25,18 @@ O repositório é público: não precisa de conta nem de credencial do GitHub pa
 
 | Peça | Observação |
 |---|---|
-| Computador com placa de vídeo | Os autores só testaram em **Mac com chip Apple**. Windows e Linux têm o caminho do Chrome e o backend da GPU detectados, mas nunca foram testados. Sem GPU o render roda por software, dezenas de vezes mais lento. |
-| Node 18 ou mais novo | nodejs.org |
-| Google Chrome (ou Chromium) | o estúdio o acha sozinho; se não achar, ponha o caminho em `CHROME_PATH` no `.env` |
-| ffmpeg com libx264 | no macOS: `brew install ffmpeg` |
-| Internet na instalação | o `npm` baixa o three.js e o Playwright |
+| Computador com placa de vídeo | Os autores rodaram de verdade em **Mac com chip Apple**. No **Windows**, a busca de programas e o plano de instalação foram testados por simulação, mas o download e o render em si ainda não foram rodados num Windows de verdade; o Linux também não. Sem GPU o render roda por software, dezenas de vezes mais lento. |
+| Node 18 ou mais novo | nodejs.org. É a **única peça que você instala à mão** (Mac: `brew install node`; Windows: `winget install --id OpenJS.NodeJS.LTS -e`); o resto o `npm run preparar` resolve. |
+| Google Chrome, Chromium ou Edge | o estúdio acha o que você já tem (o Windows já vem com o Edge). Se não houver nenhum, o `npm run preparar` baixa um Chromium só para o projeto (uns 300 MB). Para usar outro, ponha o caminho em `CHROME_PATH` no `.env`. |
+| ffmpeg com libx264 | se você já tem, é usado (até o do Homebrew, do winget, do Chocolatey ou do Scoop, mesmo fora do PATH). Se não, o `npm run preparar` baixa um ffmpeg e um ffprobe só para o projeto (uns 50 MB). |
+| Internet na instalação | o `npm run preparar` baixa o three.js, o Playwright e, só se faltarem, o ffmpeg e o navegador |
 | Uns 10 GB livres | um vídeo gera milhares de quadros temporários |
 
 ## Primeiro uso (uns 5 minutos)
 
 ```bash
-npm run instalar          # uma vez: baixa o three.js e o Playwright e cria o atalho estudio/node_modules
-npm run doctor            # confere o computador e estima o tempo de render; o que faltar aparece como [FALTA]
+npm run preparar          # uma vez, no Mac ou no Windows: confere o computador, mostra o que falta e, com o seu sim, baixa só isso
+                          # (pacotes do estúdio, ffmpeg, navegador); no fim roda o doctor e estima o tempo de render
 npm run exemplo:esportes  # renderiza 2 s da aula (o jab) em estudio/esportes/saida/exemplo_esportes.mp4
 ```
 
@@ -92,3 +92,11 @@ Só depois disso funcionam os Reels com raio X. **Todo vídeo que mostrar a anat
 ## Licença
 
 O kit tem uma licença própria (arquivo `LICENSE`): uso livre, inclusive comercial, **com uma condição: todo vídeo publicado leva a marca d'água do canal LABS** (um selo fraco, a 1,5%, só as letras LABS, que muda de canto). Também não é permitido vender o kit como produto, curso ou template. `npm run conferir -- marca` confere que a marca continua nos motores do kit; quem a tirar perde a licença. Leia o `LICENSE` inteiro antes de usar ou repassar.
+
+## Instalação automática: o que ela faz e o que não faz
+
+- `npm run preparar` **nunca pede senha de administrador** e só baixa para dentro da pasta do projeto (`estudio/motor3d/node_modules`, `estudio/ferramentas_locais`). Apagar a pasta do projeto apaga tudo.
+- **O que você já tem é usado, não baixado de novo.** Ele procura ffmpeg e ffprobe no PATH e nas pastas de costume, e Chrome, Chromium ou Edge nos lugares de costume de cada sistema. Só baixa o que não achar.
+- `npm run preparar -- --simular` só mostra o plano; `-- --sim` baixa sem perguntar. `npm run doctor` diz de onde vem cada programa.
+- Para usar só as cópias do projeto e ignorar as do sistema: `ESTUDIO_IGNORAR=ffmpeg,chrome` no `.env`.
+- O Node é a única peça que ele não instala (é ele que roda o resto). Se faltar, a skill `novo-projeto` mostra o comando do `winget` ou do `brew`.

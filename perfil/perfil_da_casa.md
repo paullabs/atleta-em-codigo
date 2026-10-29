@@ -26,7 +26,7 @@ Apague ou acrescente linhas à vontade.
 
 ## 4. Voz e música
 
-- Enquanto o vídeo está em construção: voz provisória grátis do sistema (no macOS, o `say`).
+- Enquanto o vídeo está em construção: voz provisória grátis do sistema (no macOS, o `say`; no Windows, a voz Microsoft Maria).
 - Voz final: ElevenLabs, na **sua** conta, com a chave em `.env` (`ELEVENLABS_API_KEY`). Voz escolhida: ________
 - A voz paga entra só no fim, depois do storyboard e do render aprovados.
 
